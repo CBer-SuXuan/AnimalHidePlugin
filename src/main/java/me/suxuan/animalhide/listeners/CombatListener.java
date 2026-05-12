@@ -28,13 +28,27 @@ public class CombatListener implements Listener {
 	@EventHandler
 	public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
 		// 确保攻击者和受害者都是玩家
-		if (!(event.getDamager() instanceof Player attacker) || !(event.getEntity() instanceof Player victim)) {
+		if (!(event.getDamager() instanceof Player attacker)) {
 			return;
 		}
 
 		Arena arena = gameManager.getArenaByPlayer(attacker);
 
-		if (arena == null || arena != gameManager.getArenaByPlayer(victim) || arena.getState() != GameState.PLAYING) {
+		if (arena == null || arena.getState() != GameState.PLAYING) {
+			return;
+		}
+
+		if (arena.getAiAnimals().contains(event.getEntity())) {
+			if (arena.getSeekers().contains(attacker.getUniqueId())) {
+				event.setDamage(0);
+
+				attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, false, false, false));
+				attacker.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, false));
+			}
+			return;
+		}
+
+		if (!(event.getEntity() instanceof Player victim)) {
 			return;
 		}
 

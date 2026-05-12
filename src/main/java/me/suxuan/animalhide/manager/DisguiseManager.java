@@ -54,6 +54,7 @@ public class DisguiseManager {
 		LivingWatcher watcher = disguise.getWatcher();
 		watcher.setGlowing(false);
 		watcher.setCustomNameVisible(false);
+		watcher.setPitchLock(0f);
 
 		// 应用变身
 		DisguiseAPI.disguiseToAll(player, disguise);
@@ -64,7 +65,7 @@ public class DisguiseManager {
 
 		float actualSpeed = getVanillaSpeed(player, type);
 		player.setWalkSpeed(actualSpeed);
-		plugin.getComponentLogger().info("玩家 " + player.getName() + " 变身为 " + type.name() + "，移速设为: " + actualSpeed);
+		plugin.getComponentLogger().info("玩家 {} 变身为 {}，移速设为: {}", player.getName(), type.name(), actualSpeed);
 	}
 
 	/**

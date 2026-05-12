@@ -1,5 +1,6 @@
 package me.suxuan.animalhide.game;
 
+import com.destroystokyo.paper.entity.ai.VanillaGoal;
 import lombok.Getter;
 import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.suxuan.animalhide.AnimalHidePlugin;
@@ -10,13 +11,10 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
@@ -61,8 +59,11 @@ public class GameManager {
 			Location waiting = configManager.getLocation(config.getConfigurationSection("locations.waiting-lobby"));
 			Location hiderSpawn = configManager.getLocation(config.getConfigurationSection("locations.hider-spawn"));
 			Location seekerSpawn = configManager.getLocation(config.getConfigurationSection("locations.seeker-spawn"));
+			Location pos1 = configManager.getLocation(config.getConfigurationSection("locations.pos1"));
+			Location pos2 = configManager.getLocation(config.getConfigurationSection("locations.pos2"));
+			int aiAnimalCount = config.getInt("settings.ai-animal-count", 10);
 
-			Arena arena = new Arena(this, name, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn);
+			Arena arena = new Arena(this, name, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, pos1, pos2, aiAnimalCount);
 			arenas.put(name, arena);
 		}
 		plugin.getComponentLogger().info("已成功初始化 {} 个游戏房间。", arenas.size());
@@ -160,7 +161,64 @@ public class GameManager {
 			}
 		}
 
+		spawnAIAnimals(arena);
+
 		startHidePhaseTask(arena, hideTime);
+	}
+
+	/**
+	 * 在地图区域内随机生成 AI 动物
+	 */
+	private void spawnAIAnimals(Arena arena) {
+		Location pos1 = arena.getPos1();
+		Location pos2 = arena.getPos2();
+		if (pos1 == null || pos2 == null || pos1.getWorld() == null) return;
+
+		org.bukkit.World world = pos1.getWorld();
+		List<String> allowedAnimals = configManager.getArenaConfigs().get(arena.getArenaName()).getStringList("allowed-animals");
+		if (allowedAnimals.isEmpty()) return;
+
+		int count = arena.getAiAnimalCount();
+		Random random = new Random();
+
+		int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
+		int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
+		int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
+		int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
+
+		for (int i = 0; i < count; i++) {
+			int randomX = minX + random.nextInt(maxX - minX + 1);
+			int randomZ = minZ + random.nextInt(maxZ - minZ + 1);
+
+			int highestY = world.getHighestBlockYAt(randomX, randomZ) + 1;
+			float randomYaw = random.nextFloat() * 360f;
+			Location spawnLoc = new Location(world, randomX + 0.5, highestY, randomZ + 0.5, randomYaw, 0);
+
+			String animalStr = allowedAnimals.get(random.nextInt(allowedAnimals.size()));
+			try {
+				EntityType type = EntityType.valueOf(animalStr.toUpperCase());
+				Entity entity = world.spawnEntity(spawnLoc, type);
+				entity.setSilent(true);
+				if (entity instanceof Mob mob) {
+					Bukkit.getMobGoals().removeGoal(mob, VanillaGoal.LOOK_AT_PLAYER);
+				}
+				if (entity instanceof Ageable ageable) {
+					ageable.setAdult();
+				}
+				if (entity instanceof Sheep sheep) {
+					sheep.setColor(DyeColor.WHITE);
+				} else if (entity instanceof Wolf wolf) {
+					wolf.setVariant(Registry.WOLF_VARIANT.get(NamespacedKey.minecraft("pale")));
+				} else if (entity instanceof Cat cat) {
+					cat.setCatType(Registry.CAT_VARIANT.get(NamespacedKey.minecraft("tabby")));
+				}
+				arena.getAiAnimals().add(entity);
+
+			} catch (IllegalArgumentException e) {
+				plugin.getComponentLogger().warn("尝试生成未知的 AI 动物类型: {}", animalStr);
+			}
+		}
+		plugin.getComponentLogger().info("已在竞技场 {} 生成了 {} 只 AI 动物。", arena.getArenaName(), count);
 	}
 
 	private void setupSeeker(Player seeker, Arena arena, int hideTimeTicks) {

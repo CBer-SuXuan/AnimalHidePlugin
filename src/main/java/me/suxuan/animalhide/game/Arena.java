@@ -7,11 +7,10 @@ import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * 竞技场 (房间) 类
@@ -42,7 +41,14 @@ public class Arena {
 	private final Set<UUID> hiders = new HashSet<>();
 	private final Set<UUID> seekers = new HashSet<>();
 
-	public Arena(GameManager gameManager, String arenaName, int minPlayers, int maxPlayers, Location waitingLobby, Location hiderSpawn, Location seekerSpawn) {
+	private final Location pos1;
+	private final Location pos2;
+	private final int aiAnimalCount;
+
+	private final List<Entity> aiAnimals = new ArrayList<>();
+
+	public Arena(GameManager gameManager, String arenaName, int minPlayers, int maxPlayers, Location waitingLobby,
+	             Location hiderSpawn, Location seekerSpawn, Location pos1, Location pos2, int aiAnimalCount) {
 		this.gameManager = gameManager;
 		this.arenaName = arenaName;
 		this.minPlayers = minPlayers;
@@ -51,6 +57,9 @@ public class Arena {
 		this.hiderSpawn = hiderSpawn;
 		this.seekerSpawn = seekerSpawn;
 		this.state = GameState.WAITING;
+		this.pos1 = pos1;
+		this.pos2 = pos2;
+		this.aiAnimalCount = aiAnimalCount;
 	}
 
 	/**
@@ -125,6 +134,10 @@ public class Arena {
 	 * 重置房间
 	 */
 	public void reset() {
+		for (Entity e : aiAnimals) {
+			e.remove();
+		}
+		aiAnimals.clear();
 		if (this.timeBar != null) {
 			for (UUID uuid : players) {
 				Player p = Bukkit.getPlayer(uuid);

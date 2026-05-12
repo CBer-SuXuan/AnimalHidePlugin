@@ -3,13 +3,13 @@ package me.suxuan.animalhide.listeners;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.FoodLevelChangeEvent;
+import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerDropItemEvent;
 
 public class GameRuleListener implements Listener {
@@ -90,5 +90,60 @@ public class GameRuleListener implements Listener {
 				event.getCause() != EntityDamageEvent.DamageCause.PROJECTILE) {
 			event.setCancelled(true);
 		}
+	}
+
+	/**
+	 * 防止玩家在游戏中捡起地上的掉落物
+	 */
+	@EventHandler
+	public void onEntityPickupItem(EntityPickupItemEvent event) {
+		// 判断拾取物品的实体是否为玩家
+		if (event.getEntity() instanceof Player player) {
+			Arena arena = gameManager.getArenaByPlayer(player);
+
+			// 如果玩家在游戏中，直接取消拾取
+			if (arena != null && arena.getState() == GameState.PLAYING) {
+				event.setCancelled(true);
+			}
+		}
+	}
+
+	/**
+	 * 防止原版 AI 生物互相攻击 (如狼吃羊) 以及生物锁定玩家
+	 */
+	@EventHandler
+	public void onEntityTarget(EntityTargetEvent event) {
+		// 如果目标是玩家，且玩家在游戏中，取消怪物的仇恨锁定
+		if (event.getTarget() instanceof Player player) {
+			Arena arena = gameManager.getArenaByPlayer(player);
+			if (arena != null && arena.getState() == GameState.PLAYING) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// 如果是 AI 动物之间的互相锁定 (如狼锁定羊)，通过所在世界来判断并取消
+		for (Arena arena : gameManager.getArenas().values()) {
+			if (arena.getState() == GameState.PLAYING) {
+				// 如果这个发生寻敌事件的实体，处在正在游戏的地图世界中，就取消它的寻敌行为
+				if (arena.getHiderSpawn() != null && event.getEntity().getWorld().equals(arena.getHiderSpawn().getWorld())) {
+					event.setCancelled(true);
+					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * 防止羊吃草破坏地形
+	 */
+	@EventHandler
+	public void onEntityChangeBlock(EntityChangeBlockEvent event) {
+		if (event.getEntity() instanceof Player player) {
+			if (player.getGameMode() == GameMode.CREATIVE) {
+				return;
+			}
+		}
+		event.setCancelled(true);
 	}
 }

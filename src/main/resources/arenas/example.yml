@@ -2,9 +2,12 @@ name: "示例地图"
 
 # 坐标点（坐标点必须有world,x,y,z，yaw和pitch可选）
 locations:
-  waiting-lobby: { world: "farm", x: 8.5, y: -45, z: 8.5 } # 游戏开始前的等待室
-  hider-spawn: { world: "farm", x: 11.5, y: -60, z: 11.5 } # 躲藏者出生点
-  seeker-spawn: { world: "farm", x: 5.5, y: -60, z: 5.5 } # 寻找者出生点
+  waiting-lobby: { world: "farm", x: 8.5, y: -45, z: 8.5, yaw: 0.0, pitch: 90.0 } # 游戏开始前的等待室
+  hider-spawn: { world: "farm", x: 11.5, y: -60, z: 11.5, yaw: 135.0, pitch: 10.0 } # 躲藏者出生点
+  seeker-spawn: { world: "farm", x: 5.5, y: -60, z: 5.5, yaw: -45, pitch: 10.0 } # 寻找者出生点
+  # 地图的两个对角线坐标，用于划定生成 AI 动物的区域
+  pos1: { world: "farm", x: 16, y: -60, z: 16 }
+  pos2: { world: "farm", x: 0, y: -60, z: 0 }
 
 # 玩法参数
 settings:
@@ -13,6 +16,7 @@ settings:
   seeker-ratio: 0.2 # 寻找者比例（0-1之间）
   preparation-time: 5 # 躲藏时间（秒）
   game-duration: 120 # 游戏时长（秒）
+  ai-animal-count: 30 # AI动物数量
 
 # 允许变身的动物列表
 allowed-animals:
