@@ -295,7 +295,6 @@ public class GameManager {
 	private void setupHider(Player hider, Arena arena, List<String> allowedAnimals) {
 		hider.teleportAsync(arena.getHiderSpawn());
 
-		// 随机抽取一个允许的动物类型进行变身
 		String randomAnimalStr = allowedAnimals.get(new Random().nextInt(allowedAnimals.size()));
 		try {
 			DisguiseType type = DisguiseType.valueOf(randomAnimalStr.toUpperCase());
@@ -304,15 +303,57 @@ public class GameManager {
 			plugin.getComponentLogger().warn("未知的变身类型: {}", randomAnimalStr);
 		}
 
-		hider.sendMessage(Component.text("你是躲藏者！快找个地方藏起来！", NamedTextColor.GREEN));
+		hider.sendMessage(Component.text("你是躲藏者！", NamedTextColor.GREEN));
 
-		ItemStack selector = new ItemStack(Material.NETHER_STAR);
-		ItemMeta meta = selector.getItemMeta();
-		meta.displayName(Component.text("★ 伪装选择器 (右键打开) ★", NamedTextColor.GOLD)
-				.decoration(TextDecoration.ITALIC, false));
-		selector.setItemMeta(meta);
+		equipHider(hider);
 
-		hider.getInventory().setItem(0, selector);
+	}
+
+	private void equipHider(Player hider) {
+		// 1. 变身魔杖 (第 1 格，索引 0)
+		ItemStack wand = new ItemStack(Material.BLAZE_ROD);
+		ItemMeta wandMeta = wand.getItemMeta();
+		wandMeta.displayName(Component.text("★ 变身魔杖 (右键场上生物) ★", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+		wand.setItemMeta(wandMeta);
+		hider.getInventory().setItem(0, wand);
+
+		// 2. 弓 (第 2 格，索引 1)
+		ItemStack bow = new ItemStack(Material.BOW);
+		ItemMeta bowMeta = bow.getItemMeta();
+		bowMeta.setUnbreakable(true);
+		bow.setItemMeta(bowMeta);
+		hider.getInventory().setItem(1, bow);
+
+		// 3. 安全嘲讽 (第 4 格，索引 3)
+		ItemStack safeTaunt = new ItemStack(Material.PINK_DYE);
+		ItemMeta safeMeta = safeTaunt.getItemMeta();
+		safeMeta.displayName(Component.text("▶ 安全嘲讽 (微光特效)", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+		safeTaunt.setItemMeta(safeMeta);
+		hider.getInventory().setItem(3, safeTaunt);
+
+		// 4. 较为危险的嘲讽 (第 5 格，索引 4)
+		ItemStack modTaunt = new ItemStack(Material.GLOWSTONE_DUST);
+		ItemMeta modMeta = modTaunt.getItemMeta();
+		modMeta.displayName(Component.text("▶ 发光嘲讽 (透视自身3秒)", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+		modTaunt.setItemMeta(modMeta);
+		hider.getInventory().setItem(4, modTaunt);
+
+		// 5. 烟花嘲讽 (第 6 格，索引 5)
+		ItemStack fwTaunt = new ItemStack(Material.FIREWORK_ROCKET);
+		ItemMeta fwMeta = fwTaunt.getItemMeta();
+		fwMeta.displayName(Component.text("▶ 烟花嘲讽 (发射烟花)", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+		fwTaunt.setItemMeta(fwMeta);
+		hider.getInventory().setItem(5, fwTaunt);
+
+		// 6. 危险嘲讽 (第 7 格，索引 6)
+		ItemStack dangTaunt = new ItemStack(Material.REDSTONE_TORCH);
+		ItemMeta dangMeta = dangTaunt.getItemMeta();
+		dangMeta.displayName(Component.text("▶ 危险嘲讽 (暴露位置+自身减速)", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+		dangTaunt.setItemMeta(dangMeta);
+		hider.getInventory().setItem(6, dangTaunt);
+
+		// 7. 箭 x5 (第 9 格，索引 8)
+		hider.getInventory().setItem(8, new ItemStack(Material.ARROW, 5));
 	}
 
 	/**

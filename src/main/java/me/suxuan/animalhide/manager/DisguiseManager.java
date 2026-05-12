@@ -3,13 +3,20 @@ package me.suxuan.animalhide.manager;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.libraryaddict.disguise.disguisetypes.MobDisguise;
+import me.libraryaddict.disguise.disguisetypes.watchers.CatWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.LivingWatcher;
+import me.libraryaddict.disguise.disguisetypes.watchers.SheepWatcher;
+import me.libraryaddict.disguise.disguisetypes.watchers.WolfWatcher;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.DyeColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -56,6 +63,20 @@ public class DisguiseManager {
 		watcher.setCustomNameVisible(false);
 		watcher.setPitchLock(0f);
 
+		if (watcher instanceof SheepWatcher sheepWatcher) {
+			sheepWatcher.setColor(DyeColor.WHITE);
+		} else if (watcher instanceof WolfWatcher wolfWatcher) {
+			try {
+				wolfWatcher.setVariant(Registry.WOLF_VARIANT.get(NamespacedKey.minecraft("pale")));
+			} catch (Throwable ignored) {
+			}
+		} else if (watcher instanceof CatWatcher catWatcher) {
+			try {
+				catWatcher.setType(Registry.CAT_VARIANT.get(NamespacedKey.minecraft("tabby")));
+			} catch (Throwable ignored) {
+			}
+		}
+
 		// 应用变身
 		DisguiseAPI.disguiseToAll(player, disguise);
 
@@ -65,7 +86,6 @@ public class DisguiseManager {
 
 		float actualSpeed = getVanillaSpeed(player, type);
 		player.setWalkSpeed(actualSpeed);
-		plugin.getComponentLogger().info("玩家 {} 变身为 {}，移速设为: {}", player.getName(), type.name(), actualSpeed);
 	}
 
 	/**
@@ -118,8 +138,7 @@ public class DisguiseManager {
 
 		uiItem.setItemMeta(meta);
 
-		// 将物品放置在玩家快捷栏的第 9 个格子
-		player.getInventory().setItem(8, uiItem);
+		player.getInventory().setItem(7, uiItem);
 	}
 
 	/**
@@ -129,21 +148,20 @@ public class DisguiseManager {
 		try {
 			EntityType entityType = EntityType.valueOf(type.name());
 
-			// 确保这是一个有生命的实体
 			if (entityType.isAlive() && entityType.getEntityClass() != null) {
-				org.bukkit.entity.Entity dummy = player.getWorld().createEntity(player.getLocation(), entityType.getEntityClass());
+				Entity dummy = player.getWorld().createEntity(player.getLocation(), entityType.getEntityClass());
 
 				if (dummy instanceof LivingEntity livingDummy) {
 					AttributeInstance speedAttr = livingDummy.getAttribute(Attribute.MOVEMENT_SPEED);
 					if (speedAttr != null) {
 						double baseSpeed = speedAttr.getBaseValue();
-						return Math.min(1.0f, (float) baseSpeed);
+						float scaledSpeed = (float) (baseSpeed * 0.7);
+						return Math.clamp(scaledSpeed, 0.12f, 0.35f);
 					}
 				}
 			}
 		} catch (IllegalArgumentException ignored) {
 		}
-
 		return 0.2f;
 	}
 }
