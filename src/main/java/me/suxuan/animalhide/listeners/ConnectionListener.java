@@ -37,6 +37,9 @@ public class ConnectionListener implements Listener {
 	public void onPlayerJoin(PlayerJoinEvent event) {
 		Player player = event.getPlayer();
 
+		Location mainLobby = AnimalHidePlugin.getInstance().getConfigManager().getLocation(
+				AnimalHidePlugin.getInstance().getConfigManager().getMainConfig().getConfigurationSection("main-lobby"));
+
 		for (Arena arena : gameManager.getArenas().values()) {
 			Location hiderSpawn = arena.getHiderSpawn();
 
@@ -47,17 +50,18 @@ public class ConnectionListener implements Listener {
 					player.getInventory().clear();
 					player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
 					AnimalHidePlugin.getInstance().getDisguiseManager().undisguisePlayer(player);
-
-					Location mainLobby = AnimalHidePlugin.getInstance().getConfigManager().getLocation(
-							AnimalHidePlugin.getInstance().getConfigManager().getMainConfig().getConfigurationSection("main-lobby")
-					);
 					if (mainLobby != null) {
 						player.teleportAsync(mainLobby);
 					}
+					return;
 
 				}
 				break;
 			}
+		}
+
+		if (mainLobby != null) {
+			player.teleportAsync(mainLobby);
 		}
 	}
 }

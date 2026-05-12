@@ -186,7 +186,7 @@ public class GameManager {
 		seeker.getInventory().setBoots(new ItemStack(Material.IRON_BOOTS));
 
 		ItemStack sword = new ItemStack(Material.DIAMOND_SWORD);
-		org.bukkit.inventory.meta.ItemMeta meta = sword.getItemMeta();
+		ItemMeta meta = sword.getItemMeta();
 		if (meta != null) {
 			meta.setUnbreakable(true);
 			sword.setItemMeta(meta);

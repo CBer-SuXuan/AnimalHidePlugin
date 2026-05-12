@@ -60,6 +60,8 @@ public class DisguiseManager {
 
 		giveDisguiseItemUI(player, type);
 
+		player.setCollidable(false);
+
 		float actualSpeed = getVanillaSpeed(player, type);
 		player.setWalkSpeed(actualSpeed);
 		plugin.getComponentLogger().info("玩家 " + player.getName() + " 变身为 " + type.name() + "，移速设为: " + actualSpeed);
@@ -73,6 +75,7 @@ public class DisguiseManager {
 	public void undisguisePlayer(Player player) {
 		if (DisguiseAPI.isDisguised(player)) {
 			DisguiseAPI.undisguiseToAll(player);
+			player.setCollidable(true);
 			player.setWalkSpeed(0.2f);
 			player.sendMessage(Component.text("你的伪装已解除！", NamedTextColor.RED));
 		}

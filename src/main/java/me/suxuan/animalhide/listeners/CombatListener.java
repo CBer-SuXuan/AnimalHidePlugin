@@ -41,14 +41,13 @@ public class CombatListener implements Listener {
 		boolean attackerIsSeeker = arena.getSeekers().contains(attacker.getUniqueId());
 		boolean victimIsHider = arena.getHiders().contains(victim.getUniqueId());
 
-		// 规则 1：只允许寻找者攻击躲藏者
 		if (attackerIsSeeker && victimIsHider) {
 			// 检查这次攻击是否致命
 			if (victim.getHealth() - event.getFinalDamage() <= 0) {
 				event.setCancelled(true); // 取消原版死亡事件，防止掉落物品和重生屏幕
 				handleHiderDeath(arena, victim, attacker);
 			} else {
-				victim.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 60, 1, false, false, false));
+				victim.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 40, 1, false, false, false));
 				victim.sendActionBar(Component.text("你受到了惊吓！快逃！", NamedTextColor.YELLOW));
 			}
 		} else {

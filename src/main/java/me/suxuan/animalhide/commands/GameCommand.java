@@ -1,5 +1,6 @@
 package me.suxuan.animalhide.commands;
 
+import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import net.kyori.adventure.text.Component;
@@ -137,6 +138,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
 		try {
 			gameManager.reload();
+			AnimalHidePlugin.getInstance().getConfigManager().loadConfigs();
 			player.sendMessage(Component.text("✔ 插件重载成功！", NamedTextColor.GREEN));
 		} catch (Exception e) {
 			player.sendMessage(Component.text("✘ 重载失败，请查看后台报错！", NamedTextColor.DARK_RED));

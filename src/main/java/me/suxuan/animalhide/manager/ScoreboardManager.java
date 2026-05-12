@@ -9,14 +9,9 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scoreboard.Criteria;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * 计分板管理器
@@ -26,6 +21,9 @@ public class ScoreboardManager {
 	private final AnimalHidePlugin plugin;
 	private final GameManager gameManager;
 
+	// 【新增】用于缓存玩家上一次的计分板内容
+	private final Map<UUID, List<String>> lastBoardData = new HashMap<>();
+
 	public ScoreboardManager(AnimalHidePlugin plugin, GameManager gameManager) {
 		this.plugin = plugin;
 		this.gameManager = gameManager;
@@ -33,7 +31,7 @@ public class ScoreboardManager {
 	}
 
 	/**
-	 * 开启全局计分板刷新任务 (每 20 Tick / 1秒)
+	 * 开启全局计分板刷新任务
 	 */
 	private void startUpdateTask() {
 		new BukkitRunnable() {
@@ -48,7 +46,7 @@ public class ScoreboardManager {
 					}
 				}
 			}
-		}.runTaskTimer(plugin, 0L, 20L);
+		}.runTaskTimer(plugin, 0L, 2L); // 【关键修改】改为 2 Tick(0.1秒) 极速轮询，消除视觉延迟
 	}
 
 	/**
@@ -56,17 +54,21 @@ public class ScoreboardManager {
 	 */
 	private void updateBoard(Player player, Arena arena) {
 		Scoreboard board = player.getScoreboard();
-		// 如果玩家用的是主计分板，给他们分配一个私人计分板
 		if (board == Bukkit.getScoreboardManager().getMainScoreboard()) {
 			board = Bukkit.getScoreboardManager().getNewScoreboard();
 			player.setScoreboard(board);
 		}
 
-		// 生成唯一前缀以应用双缓冲无闪烁刷新
-		String objName = "ah_" + (System.currentTimeMillis() % 10000);
-		Objective newObj = board.registerNewObjective(objName, Criteria.DUMMY, Component.text("🐾 动物躲猫猫 🐾", NamedTextColor.YELLOW));
+		Team team = board.getTeam("ah_no_col");
+		if (team == null) {
+			team = board.registerNewTeam("ah_no_col");
+			team.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
+		}
+		if (!team.hasEntry(player.getName())) {
+			team.addEntry(player.getName());
+		}
 
-		// 构建显示的文本行
+		// 1. 构建显示的文本行
 		List<String> lines = new ArrayList<>();
 		lines.add("§a"); // 空行作分隔
 		lines.add("§f地图: §a" + arena.getArenaName());
@@ -93,17 +95,27 @@ public class ScoreboardManager {
 		lines.add("§e");
 		lines.add("§7mcbi.top");
 
-		// 倒序插入分数 (让第一行在最上面)
+		// 缓存对比拦截：如果文本内容没有变，直接停止操作，不向客户端发包！
+		if (lines.equals(lastBoardData.get(player.getUniqueId()))) {
+			return;
+		}
+		// 保存最新的文本内容到缓存中
+		lastBoardData.put(player.getUniqueId(), new ArrayList<>(lines));
+
+		// 使用 UUID 保证生成的目标名绝对唯一，防止时间戳碰撞
+		String objName = "ah_" + UUID.randomUUID().toString().substring(0, 8);
+		Objective newObj = board.registerNewObjective(objName, Criteria.DUMMY, Component.text("🐾 动物躲猫猫 🐾", NamedTextColor.YELLOW));
+
+		// 3. 倒序插入分数
 		int score = lines.size();
 		for (String line : lines) {
-			// 注意：计分板不允许重复文本，如果出现两行空行，需要用不同的颜色代码（比如 §a, §b, §c）区分
 			newObj.getScore(line).setScore(score--);
 		}
 
-		// 将新内容推送到侧边栏
+		// 4. 将新内容推送到侧边栏
 		newObj.setDisplaySlot(DisplaySlot.SIDEBAR);
 
-		// 注销旧的 Objective，完成平滑替换
+		// 5. 注销旧的 Objective，完成平滑替换
 		for (Objective obj : board.getObjectives()) {
 			if (obj.getName().startsWith("ah_") && !obj.getName().equals(objName)) {
 				obj.unregister();
@@ -116,6 +128,7 @@ public class ScoreboardManager {
 	 */
 	public void removeBoard(Player player) {
 		player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+		lastBoardData.remove(player.getUniqueId());
 	}
 
 	private String getStateString(GameState state) {
