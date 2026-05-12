@@ -4,8 +4,13 @@ import lombok.Getter;
 import me.suxuan.animalhide.commands.GameCommand;
 import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.game.GameManager;
-import me.suxuan.animalhide.listeners.GameListener;
+import me.suxuan.animalhide.listeners.CombatListener;
+import me.suxuan.animalhide.listeners.ConnectionListener;
+import me.suxuan.animalhide.listeners.GameRuleListener;
+import me.suxuan.animalhide.listeners.InteractionListener;
 import me.suxuan.animalhide.manager.DisguiseManager;
+import me.suxuan.animalhide.manager.ScoreboardManager;
+import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 @Getter
@@ -17,6 +22,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private ConfigManager configManager;
 	private DisguiseManager disguiseManager;
 	private GameManager gameManager;
+	private ScoreboardManager scoreboardManager;
 
 	@Override
 	public void onEnable() {
@@ -36,10 +42,15 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		configManager = new ConfigManager(this);
 		disguiseManager = new DisguiseManager(this);
 		gameManager = new GameManager(this, configManager, disguiseManager);
+		scoreboardManager = new ScoreboardManager(this, gameManager);
 	}
 
 	private void registerListeners() {
-		getServer().getPluginManager().registerEvents(new GameListener(gameManager), this);
+		PluginManager pm = getServer().getPluginManager();
+		pm.registerEvents(new CombatListener(gameManager), this);
+		pm.registerEvents(new ConnectionListener(gameManager), this);
+		pm.registerEvents(new GameRuleListener(gameManager), this);
+		pm.registerEvents(new InteractionListener(gameManager), this);
 	}
 
 	private void registerCommands() {
@@ -48,7 +59,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 
 	@Override
 	public void onDisable() {
-		// Plugin shutdown logic
+		gameManager.emergencyCleanup();
 	}
 
 }

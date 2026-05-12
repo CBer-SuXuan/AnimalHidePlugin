@@ -28,6 +28,8 @@ public class ConfigManager {
 	}
 
 	public void loadConfigs() {
+		arenaConfigs.clear();
+		
 		// 加载主配置
 		plugin.saveDefaultConfig();
 		plugin.reloadConfig();

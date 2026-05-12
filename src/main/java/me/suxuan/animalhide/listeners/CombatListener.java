@@ -10,93 +10,16 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.FoodLevelChangeEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
-/**
- * 游戏事件监听器
- * 负责处理伤害判定、防止地图破坏以及掉线处理
- */
-public class GameListener implements Listener {
+public class CombatListener implements Listener {
 
 	private final GameManager gameManager;
 
-	public GameListener(GameManager gameManager) {
+	public CombatListener(GameManager gameManager) {
 		this.gameManager = gameManager;
-	}
-
-	/**
-	 * 防止玩家在游戏房间内破坏方块
-	 */
-	@EventHandler
-	public void onBlockBreak(BlockBreakEvent event) {
-		Player player = event.getPlayer();
-		Arena arena = gameManager.getArenaByPlayer(player);
-		if (arena != null) {
-			event.setCancelled(true);
-		}
-	}
-
-	/**
-	 * 防止玩家在游戏房间内放置方块
-	 */
-	@EventHandler
-	public void onBlockPlace(BlockPlaceEvent event) {
-		Player player = event.getPlayer();
-		Arena arena = gameManager.getArenaByPlayer(player);
-		if (arena != null) {
-			event.setCancelled(true);
-		}
-	}
-
-	/**
-	 * 取消玩家饥饿变化
-	 */
-	@EventHandler
-	public void onFoodLevelChange(FoodLevelChangeEvent event) {
-		if (event.getEntity() instanceof Player player) {
-			if (gameManager.getArenaByPlayer(player) != null) {
-				event.setCancelled(true);
-				player.setFoodLevel(20);
-			}
-		}
-	}
-
-	/**
-	 * 处理中途断开连接的玩家
-	 */
-	@EventHandler
-	public void onPlayerQuit(PlayerQuitEvent event) {
-		Player player = event.getPlayer();
-		Arena arena = gameManager.getArenaByPlayer(player);
-		if (arena != null) {
-			arena.removePlayer(player);
-		}
-	}
-
-	/**
-	 * 全局环境伤害控制
-	 */
-	@EventHandler
-	public void onEntityDamage(EntityDamageEvent event) {
-		if (!(event.getEntity() instanceof Player player)) return;
-
-		Arena arena = gameManager.getArenaByPlayer(player);
-		if (arena == null) return;
-
-		if (arena.getState() != GameState.PLAYING) {
-			event.setCancelled(true);
-			return;
-		}
-
-		if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK &&
-				event.getCause() != EntityDamageEvent.DamageCause.PROJECTILE) {
-			event.setCancelled(true);
-		}
 	}
 
 	/**
@@ -124,6 +47,9 @@ public class GameListener implements Listener {
 			if (victim.getHealth() - event.getFinalDamage() <= 0) {
 				event.setCancelled(true); // 取消原版死亡事件，防止掉落物品和重生屏幕
 				handleHiderDeath(arena, victim, attacker);
+			} else {
+				victim.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 60, 1, false, false, false));
+				victim.sendActionBar(Component.text("你受到了惊吓！快逃！", NamedTextColor.YELLOW));
 			}
 		} else {
 			// 禁止同阵营互相攻击，禁止躲藏者攻击寻找者
@@ -149,9 +75,10 @@ public class GameListener implements Listener {
 		victim.teleportAsync(arena.getSeekerSpawn());
 		victim.sendMessage(Component.text("你已经被发现！现在你加入了寻找者阵营！", NamedTextColor.YELLOW));
 
+		gameManager.equipSeeker(victim);
+
 		if (arena.getHiders().isEmpty()) {
 			gameManager.endGame(arena, PlayerRole.SEEKER);
 		}
 	}
-
 }

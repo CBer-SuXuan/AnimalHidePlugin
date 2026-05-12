@@ -2,6 +2,8 @@ package me.suxuan.animalhide.game;
 
 import lombok.Getter;
 import lombok.Setter;
+import me.suxuan.animalhide.AnimalHidePlugin;
+import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -23,6 +25,10 @@ public class Arena {
 	private final String arenaName;
 	@Setter
 	private GameState state;
+	@Setter
+	private BossBar timeBar;
+	@Setter
+	private int timeLeft = 0;
 
 	// 配置参数
 	private final int minPlayers;
@@ -67,6 +73,7 @@ public class Arena {
 		}
 
 		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + maxPlayers + ")"));
+		gameManager.resetPlayerDataWithoutLobby(player, this);
 
 		// 检查是否达到最低人数以触发倒计时
 		checkStartCondition();
@@ -81,7 +88,8 @@ public class Arena {
 		boolean wasHider = hiders.remove(uuid);
 		boolean wasSeeker = seekers.remove(uuid);
 
-		// TODO: 解除玩家变身状态，清空背包，传送回主城大厅
+		gameManager.resetPlayerData(player, this);
+		AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
 
 		broadcast(Component.text(player.getName() + " 退出了游戏!"));
 
@@ -117,6 +125,16 @@ public class Arena {
 	 * 重置房间
 	 */
 	public void reset() {
+		if (this.timeBar != null) {
+			for (UUID uuid : players) {
+				Player p = Bukkit.getPlayer(uuid);
+				if (p != null) {
+					p.hideBossBar(this.timeBar);
+					AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(p);
+				}
+			}
+			this.timeBar = null;
+		}
 		this.state = GameState.WAITING;
 		this.players.clear();
 		this.hiders.clear();

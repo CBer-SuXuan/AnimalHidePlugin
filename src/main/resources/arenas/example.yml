@@ -2,16 +2,17 @@ name: "示例地图"
 
 # 坐标点（坐标点必须有world,x,y,z，yaw和pitch可选）
 locations:
-  waiting-lobby: { world: "map_farm", x: 10, y: 70, z: 10 } # 游戏开始前的等待室
-  hider-spawn: { world: "map_farm", x: 50, y: 65, z: 50 }   # 躲藏者出生点
-  seeker-spawn: { world: "map_farm", x: 10, y: 65, z: 10 }  # 寻找者出生点
+  waiting-lobby: { world: "farm", x: 8.5, y: -45, z: 8.5 } # 游戏开始前的等待室
+  hider-spawn: { world: "farm", x: 11.5, y: -60, z: 11.5 } # 躲藏者出生点
+  seeker-spawn: { world: "farm", x: 5.5, y: -60, z: 5.5 } # 寻找者出生点
 
 # 玩法参数
 settings:
   min-players: 2 # 最少玩家
-  max-players: 12  # 最多玩家
-  preparation-time: 30 # 躲藏时间（秒）
-  game-duration: 300   # 游戏时长（秒）
+  max-players: 12 # 最多玩家
+  seeker-ratio: 0.2 # 寻找者比例（0-1之间）
+  preparation-time: 5 # 躲藏时间（秒）
+  game-duration: 120 # 游戏时长（秒）
 
 # 允许变身的动物列表
 allowed-animals:

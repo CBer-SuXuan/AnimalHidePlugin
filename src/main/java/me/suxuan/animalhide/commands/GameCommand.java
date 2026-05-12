@@ -57,6 +57,9 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 			case "list":
 				handleList(player);
 				break;
+			case "reload":
+				handleReload(player);
+				break;
 			default:
 				player.sendMessage(Component.text("✘ 未知的子指令，请输入 /hide 查看帮助。", NamedTextColor.RED));
 				break;
@@ -103,7 +106,6 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 			return;
 		}
 
-		// 调用我们在 Arena 中写好的退出逻辑
 		arena.removePlayer(player);
 		player.sendMessage(Component.text("✔ 你已成功退出游戏。", NamedTextColor.GREEN));
 	}
@@ -122,6 +124,27 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 	}
 
 	/**
+	 * 处理插件重载逻辑
+	 */
+	private void handleReload(Player player) {
+		// 独立的管理员权限检查
+		if (!player.hasPermission("animalhide.admin")) {
+			player.sendMessage(Component.text("✘ 你没有权限执行插件重载！", NamedTextColor.RED));
+			return;
+		}
+
+		player.sendMessage(Component.text("正在重载 AnimalHide 配置文件...", NamedTextColor.YELLOW));
+
+		try {
+			gameManager.reload();
+			player.sendMessage(Component.text("✔ 插件重载成功！", NamedTextColor.GREEN));
+		} catch (Exception e) {
+			player.sendMessage(Component.text("✘ 重载失败，请查看后台报错！", NamedTextColor.DARK_RED));
+			e.printStackTrace();
+		}
+	}
+
+	/**
 	 * 发送帮助菜单
 	 */
 	private void sendHelpMessage(Player player) {
@@ -129,6 +152,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 		player.sendMessage(Component.text("/hide join <地图名> ", NamedTextColor.YELLOW).append(Component.text("- 加入一场游戏", NamedTextColor.WHITE)));
 		player.sendMessage(Component.text("/hide leave ", NamedTextColor.YELLOW).append(Component.text("- 退出当前游戏", NamedTextColor.WHITE)));
 		player.sendMessage(Component.text("/hide list ", NamedTextColor.YELLOW).append(Component.text("- 查看所有地图与状态", NamedTextColor.WHITE)));
+		player.sendMessage(Component.text("/hide reload ", NamedTextColor.YELLOW).append(Component.text("- 重新加载插件配置文件", NamedTextColor.WHITE)));
 	}
 
 	/**
@@ -139,10 +163,10 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 		List<String> completions = new ArrayList<>();
 
 		if (args.length == 1) {
-			// 第一层参数补全
 			completions.add("join");
 			completions.add("leave");
 			completions.add("list");
+			completions.add("reload");
 		} else if (args.length == 2 && args[0].equalsIgnoreCase("join")) {
 			// 当输入 /hide join 时，补全所有已加载的地图名称
 			completions.addAll(gameManager.getArenas().keySet());
