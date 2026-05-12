@@ -1,0 +1,16 @@
+name: AnimalHidePlugin
+version: '${version}'
+
+main: me.suxuan.animalhide.AnimalHidePlugin
+api-version: '1.21.11'
+
+author: SuXuan_Dev
+depend: [ LibsDisguises ]
+
+load: POSTWORLD
+
+commands:
+  hide:
+    description: 动物躲猫猫主命令
+    aliases: [ ah, animalhide ]
+    usage: /<command> [参数]

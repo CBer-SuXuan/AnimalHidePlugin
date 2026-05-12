@@ -1,0 +1,10 @@
+# Project exclude paths
+/target/
+
+server
+
+.idea
+
+build.xml
+
+AnimalHidePlugin.iml

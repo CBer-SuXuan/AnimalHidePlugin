@@ -1,0 +1,22 @@
+name: "示例地图"
+
+# 坐标点（坐标点必须有world,x,y,z，yaw和pitch可选）
+locations:
+  waiting-lobby: { world: "map_farm", x: 10, y: 70, z: 10 } # 游戏开始前的等待室
+  hider-spawn: { world: "map_farm", x: 50, y: 65, z: 50 }   # 躲藏者出生点
+  seeker-spawn: { world: "map_farm", x: 10, y: 65, z: 10 }  # 寻找者出生点
+
+# 玩法参数
+settings:
+  min-players: 2 # 最少玩家
+  max-players: 12  # 最多玩家
+  preparation-time: 30 # 躲藏时间（秒）
+  game-duration: 300   # 游戏时长（秒）
+
+# 允许变身的动物列表
+allowed-animals:
+  - PIG
+  - COW
+  - SHEEP
+  - CHICKEN
+  - WOLF
