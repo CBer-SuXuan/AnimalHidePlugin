@@ -60,13 +60,53 @@ public class ScoreboardManager {
 			player.setScoreboard(board);
 		}
 
-		Team team = board.getTeam("ah_no_col");
-		if (team == null) {
-			team = board.registerNewTeam("ah_no_col");
-			team.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
-		}
-		if (!team.hasEntry(player.getName())) {
-			team.addEntry(player.getName());
+		if (arena.getState() == GameState.PLAYING) {
+			// 1. 创建盟友队伍 (绿色)
+			org.bukkit.scoreboard.Team allies = board.getTeam("ah_allies");
+			if (allies == null) {
+				allies = board.registerNewTeam("ah_allies");
+				allies.color(NamedTextColor.GREEN); // 设置名片和 Tab 颜色为绿
+				allies.setOption(org.bukkit.scoreboard.Team.Option.COLLISION_RULE, org.bukkit.scoreboard.Team.OptionStatus.NEVER);
+			}
+
+			// 2. 创建敌人队伍 (红色)
+			org.bukkit.scoreboard.Team enemies = board.getTeam("ah_enemies");
+			if (enemies == null) {
+				enemies = board.registerNewTeam("ah_enemies");
+				enemies.color(NamedTextColor.RED); // 设置名片和 Tab 颜色为红
+				enemies.setOption(org.bukkit.scoreboard.Team.Option.COLLISION_RULE, org.bukkit.scoreboard.Team.OptionStatus.NEVER);
+			}
+
+			boolean isPlayerSeeker = arena.getSeekers().contains(player.getUniqueId());
+
+			// 3. 遍历房间内所有人，根据“当前玩家的视角”把他们分到敌友队伍中
+			for (UUID targetId : arena.getPlayers()) {
+				Player target = Bukkit.getPlayer(targetId);
+				if (target == null) continue;
+
+				boolean isTargetSeeker = arena.getSeekers().contains(targetId);
+
+				// 如果阵营相同，就是盟友；否则就是敌人
+				if (isPlayerSeeker == isTargetSeeker) {
+					if (!allies.hasEntry(target.getName())) allies.addEntry(target.getName());
+				} else {
+					if (!enemies.hasEntry(target.getName())) enemies.addEntry(target.getName());
+				}
+			}
+		} else {
+			// 等待阶段尚未分配阵营，统一设置为灰色无碰撞
+			Team waitTeam = board.getTeam("ah_wait");
+			if (waitTeam == null) {
+				waitTeam = board.registerNewTeam("ah_wait");
+				waitTeam.color(NamedTextColor.GRAY);
+				waitTeam.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
+			}
+			for (UUID targetId : arena.getPlayers()) {
+				Player target = Bukkit.getPlayer(targetId);
+				if (target != null && !waitTeam.hasEntry(target.getName())) {
+					waitTeam.addEntry(target.getName());
+				}
+			}
 		}
 
 		// 1. 构建显示的文本行

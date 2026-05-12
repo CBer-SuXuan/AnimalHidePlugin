@@ -4,10 +4,7 @@ import lombok.Getter;
 import me.suxuan.animalhide.commands.GameCommand;
 import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.game.GameManager;
-import me.suxuan.animalhide.listeners.CombatListener;
-import me.suxuan.animalhide.listeners.ConnectionListener;
-import me.suxuan.animalhide.listeners.GameRuleListener;
-import me.suxuan.animalhide.listeners.InteractionListener;
+import me.suxuan.animalhide.listeners.*;
 import me.suxuan.animalhide.manager.DisguiseManager;
 import me.suxuan.animalhide.manager.ScoreboardManager;
 import org.bukkit.plugin.PluginManager;
@@ -51,6 +48,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		pm.registerEvents(new ConnectionListener(gameManager), this);
 		pm.registerEvents(new GameRuleListener(gameManager), this);
 		pm.registerEvents(new InteractionListener(gameManager), this);
+		pm.registerEvents(new ChatListener(gameManager), this);
 	}
 
 	private void registerCommands() {

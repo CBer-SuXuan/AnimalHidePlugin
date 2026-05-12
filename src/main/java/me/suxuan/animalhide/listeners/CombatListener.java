@@ -70,6 +70,10 @@ public class CombatListener implements Listener {
 		boolean victimIsSeeker = arena.getSeekers().contains(victim.getUniqueId());
 
 		if (attackerIsSeeker && victimIsHider) {
+			if (event.getDamager() instanceof Projectile) {
+				event.setDamage(8);
+				attacker.sendActionBar(Component.text("命中躲藏者！", NamedTextColor.GREEN));
+			}
 			// 寻找者 攻击 躲藏者
 			if (victim.getHealth() - event.getFinalDamage() <= 0) {
 				event.setCancelled(true);

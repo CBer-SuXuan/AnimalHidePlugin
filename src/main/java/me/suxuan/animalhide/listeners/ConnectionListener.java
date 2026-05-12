@@ -63,5 +63,11 @@ public class ConnectionListener implements Listener {
 		if (mainLobby != null) {
 			player.teleportAsync(mainLobby);
 		}
+
+		AnimalHidePlugin.getInstance().getServer().getScheduler().runTaskLater(
+				AnimalHidePlugin.getInstance(),
+				() -> gameManager.updatePlayerVisibility(player),
+				1L
+		);
 	}
 }

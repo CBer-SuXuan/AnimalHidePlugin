@@ -90,6 +90,8 @@ public class Arena {
 		gameManager.resetPlayerDataWithoutLobby(player, this);
 		giveLobbyItems(player);
 
+		gameManager.updatePlayerVisibility(player);
+
 		// 检查是否达到最低人数以触发倒计时
 		checkStartCondition();
 	}
@@ -128,6 +130,8 @@ public class Arena {
 
 		gameManager.resetPlayerData(player, this);
 		AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
+
+		gameManager.updatePlayerVisibility(player);
 
 		broadcast(Component.text(player.getName() + " 退出了游戏!"));
 

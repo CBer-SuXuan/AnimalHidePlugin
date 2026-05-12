@@ -362,6 +362,9 @@ public class GameManager {
 
 	}
 
+	/**
+	 * 为躲藏者发放专属装备
+	 */
 	private void equipHider(Player hider) {
 		// 1. 变身魔杖 (第 1 格，索引 0)
 		ItemStack wand = new ItemStack(Material.BLAZE_ROD);
@@ -653,6 +656,28 @@ public class GameManager {
 			player.setFoodLevel(20);
 			player.setFireTicks(0);
 			player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
+		}
+	}
+
+	/**
+	 * 更新玩家的可见性与 TAB 列表隔离
+	 * 规则：只有在同一个房间的玩家才能互相看见（包括在 TAB 里）
+	 */
+	public void updatePlayerVisibility(Player target) {
+		Arena targetArena = getArenaByPlayer(target);
+
+		for (Player online : Bukkit.getOnlinePlayers()) {
+			Arena onlineArena = getArenaByPlayer(online);
+
+			// 如果两人在同一个房间，或者两人都在主城大厅 (arena 都为 null)
+			if (targetArena == onlineArena) {
+				online.showPlayer(plugin, target);
+				target.showPlayer(plugin, online);
+			} else {
+				// 否则互相隐藏 (从画面和 TAB 中移除)
+				online.hidePlayer(plugin, target);
+				target.hidePlayer(plugin, online);
+			}
 		}
 	}
 }
