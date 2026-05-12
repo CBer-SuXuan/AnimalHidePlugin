@@ -29,6 +29,11 @@ public class CombatListener implements Listener {
 	public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
 		// 确保攻击者和受害者都是玩家
 		if (!(event.getDamager() instanceof Player attacker)) {
+			for (Arena arena : gameManager.getArenas().values()) {
+				if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getDamager())) {
+					event.setCancelled(true);
+				}
+			}
 			return;
 		}
 

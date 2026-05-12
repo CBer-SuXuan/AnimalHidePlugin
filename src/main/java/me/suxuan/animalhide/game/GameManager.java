@@ -125,16 +125,55 @@ public class GameManager {
 	private void startGame(Arena arena) {
 		arena.setState(GameState.PLAYING);
 
-		List<UUID> playerList = new ArrayList<>(arena.getPlayers());
-		Collections.shuffle(playerList); // 打乱玩家顺序，保证随机性
+		int animalVotes = arena.getModeVoteCount(ArenaMode.ANIMAL);
+		int monsterVotes = arena.getModeVoteCount(ArenaMode.MONSTER);
 
-		int totalPlayers = playerList.size();
+		if (monsterVotes > animalVotes) {
+			arena.setArenaMode(ArenaMode.MONSTER);
+		} else {
+			arena.setArenaMode(ArenaMode.ANIMAL);
+		}
 
+		arena.broadcast(Component.text("投票结束！本局最终模式: ", NamedTextColor.YELLOW)
+				.append(Component.text(arena.getArenaMode().getDisplayName(), NamedTextColor.GREEN)));
+
+		List<UUID> players = new ArrayList<>(arena.getPlayers());
+
+		long targetTime = (arena.getArenaMode() == ArenaMode.MONSTER) ? 13000L : 6000L;
+		for (UUID uuid : players) {
+			Player p = Bukkit.getPlayer(uuid);
+			if (p != null) {
+				p.setPlayerTime(targetTime, false);
+			}
+		}
+
+		int total = players.size();
 		double ratio = configManager.getArenaConfigs()
 				.get(arena.getArenaName())
 				.getDouble("settings.seeker-ratio", 0.2);
+		int seekerCount = (int) Math.max(1, Math.floor(total * ratio));
 
-		int seekerCount = (int) Math.max(1, Math.floor(totalPlayers * ratio));
+		List<UUID> candidatesForSeeker = new ArrayList<>();
+		List<UUID> noPreference = new ArrayList<>();
+		List<UUID> forcedHiders = new ArrayList<>();
+
+		for (UUID uuid : players) {
+			PlayerRole pref = arena.getRolePreferences().get(uuid);
+			if (pref == PlayerRole.SEEKER) candidatesForSeeker.add(uuid);
+			else if (pref == PlayerRole.HIDER) forcedHiders.add(uuid);
+			else noPreference.add(uuid);
+		}
+
+		// 随机洗牌以保证公平
+		Collections.shuffle(candidatesForSeeker);
+		Collections.shuffle(noPreference);
+		Collections.shuffle(forcedHiders);
+
+		// 组合备选池：优先想当寻找者的，其次无所谓的，最后实在不够再抽想当躲藏者的
+		List<UUID> finalSeekerPool = new ArrayList<>();
+		finalSeekerPool.addAll(candidatesForSeeker);
+		finalSeekerPool.addAll(noPreference);
+		finalSeekerPool.addAll(forcedHiders);
 
 		int hideTime = configManager.getArenaConfigs()
 				.get(arena.getArenaName())
@@ -142,7 +181,7 @@ public class GameManager {
 		int hideTimeTicks = hideTime * 20;
 
 		for (int i = 0; i < seekerCount; i++) {
-			UUID seekerUUID = playerList.get(i);
+			UUID seekerUUID = finalSeekerPool.get(i);
 			Player seeker = Bukkit.getPlayer(seekerUUID);
 
 			if (seeker != null) {
@@ -151,32 +190,33 @@ public class GameManager {
 			}
 		}
 
-		List<String> allowedAnimals = configManager.getArenaConfigs().get(arena.getArenaName()).getStringList("allowed-animals");
-		for (int i = seekerCount; i < playerList.size(); i++) {
-			UUID hiderUUID = playerList.get(i);
-			Player hider = Bukkit.getPlayer(hiderUUID);
+		String listKey = (arena.getArenaMode() == ArenaMode.ANIMAL) ? "allowed-animals" : "allowed-monsters";
+		List<String> allowedEntities = configManager.getArenaConfigs().get(arena.getArenaName()).getStringList(listKey);
+
+		for (int i = seekerCount; i < finalSeekerPool.size(); i++) {
+			UUID hiderId = finalSeekerPool.get(i);
+			Player hider = Bukkit.getPlayer(hiderId);
 			if (hider != null) {
-				arena.getHiders().add(hiderUUID);
-				setupHider(hider, arena, allowedAnimals);
+				arena.getHiders().add(hiderId);
+				setupHider(hider, arena, allowedEntities);
 			}
 		}
 
-		spawnAIAnimals(arena);
+		spawnAIEntities(arena, allowedEntities);
 
 		startHidePhaseTask(arena, hideTime);
 	}
 
 	/**
-	 * 在地图区域内随机生成 AI 动物
+	 * 在地图区域内随机生成 AI 实体
 	 */
-	private void spawnAIAnimals(Arena arena) {
+	private void spawnAIEntities(Arena arena, List<String> entities) {
 		Location pos1 = arena.getPos1();
 		Location pos2 = arena.getPos2();
 		if (pos1 == null || pos2 == null || pos1.getWorld() == null) return;
 
 		org.bukkit.World world = pos1.getWorld();
-		List<String> allowedAnimals = configManager.getArenaConfigs().get(arena.getArenaName()).getStringList("allowed-animals");
-		if (allowedAnimals.isEmpty()) return;
+		if (entities.isEmpty()) return;
 
 		int count = arena.getAiAnimalCount();
 		Random random = new Random();
@@ -194,7 +234,7 @@ public class GameManager {
 			float randomYaw = random.nextFloat() * 360f;
 			Location spawnLoc = new Location(world, randomX + 0.5, highestY, randomZ + 0.5, randomYaw, 0);
 
-			String animalStr = allowedAnimals.get(random.nextInt(allowedAnimals.size()));
+			String animalStr = entities.get(random.nextInt(entities.size()));
 			try {
 				EntityType type = EntityType.valueOf(animalStr.toUpperCase());
 				Entity entity = world.spawnEntity(spawnLoc, type);
@@ -512,6 +552,7 @@ public class GameManager {
 
 			disguiseManager.undisguisePlayer(player);
 
+			player.resetPlayerTime();
 			player.getInventory().clear();
 			player.setGameMode(GameMode.SURVIVAL);
 			player.setHealth(20.0);

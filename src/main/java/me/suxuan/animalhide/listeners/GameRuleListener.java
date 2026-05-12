@@ -66,7 +66,7 @@ public class GameRuleListener implements Listener {
 		Arena arena = gameManager.getArenaByPlayer(player);
 
 		// 如果玩家在游戏中，禁止丢弃任何物品
-		if (arena != null && arena.getState() == GameState.PLAYING) {
+		if (arena != null) {
 			event.setCancelled(true);
 		}
 	}
@@ -145,5 +145,44 @@ public class GameRuleListener implements Listener {
 			}
 		}
 		event.setCancelled(true);
+	}
+
+	/**
+	 * 封印末影人：防止 AI 末影人随机瞬移或受击瞬移
+	 */
+	@EventHandler
+	public void onEntityTeleport(EntityTeleportEvent event) {
+		for (Arena arena : gameManager.getArenas().values()) {
+			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+	}
+
+	/**
+	 * 封印亡灵：防止 AI 僵尸和骷髅在白天自燃
+	 */
+	@EventHandler
+	public void onEntityCombust(EntityCombustEvent event) {
+		for (Arena arena : gameManager.getArenas().values()) {
+			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+	}
+
+	/**
+	 * 封印苦力怕：防止 AI 苦力怕因意外情况触发爆炸引信
+	 */
+	@EventHandler
+	public void onExplosionPrime(ExplosionPrimeEvent event) {
+		for (Arena arena : gameManager.getArenas().values()) {
+			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
+				event.setCancelled(true);
+				return;
+			}
+		}
 	}
 }

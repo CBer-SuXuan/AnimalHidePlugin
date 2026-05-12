@@ -45,7 +45,6 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 			return true;
 		}
 
-		// 4. 解析子命令
 		String subCommand = args[0].toLowerCase();
 
 		switch (subCommand) {

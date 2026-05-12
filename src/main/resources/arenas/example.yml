@@ -25,3 +25,9 @@ allowed-animals:
   - SHEEP
   - CHICKEN
   - WOLF
+
+allowed-monsters:
+  - ZOMBIE
+  - SKELETON
+  - CREEPER
+  - SPIDER

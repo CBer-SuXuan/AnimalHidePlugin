@@ -2,6 +2,7 @@ package me.suxuan.animalhide.manager;
 
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
+import me.suxuan.animalhide.game.ArenaMode;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
 import net.kyori.adventure.text.Component;
@@ -84,12 +85,17 @@ public class ScoreboardManager {
 			lines.add("§f寻找者数量: §c" + arena.getSeekers().size());
 			lines.add("§d");
 			lines.add("§f剩余时间: §e" + formatTime(arena.getTimeLeft()));
-		} else if (arena.getState() == GameState.STARTING) {
+		} else if (arena.getState() == GameState.STARTING || arena.getState() == GameState.WAITING) {
 			lines.add("§f人数: §a" + arena.getPlayers().size() + "§8/§a" + arena.getMaxPlayers());
-			lines.add("§f倒计时: §e" + arena.getTimeLeft() + "秒");
-		} else {
-			lines.add("§f人数: §a" + arena.getPlayers().size() + "§8/§a" + arena.getMaxPlayers());
-			lines.add("§7等待玩家加入...");
+
+			lines.add("§6");
+			lines.add("§f模式投票:");
+			lines.add(" §7- 生物: §e" + arena.getModeVoteCount(ArenaMode.ANIMAL));
+			lines.add(" §7- 怪物: §e" + arena.getModeVoteCount(ArenaMode.MONSTER));
+
+			if (arena.getState() == GameState.STARTING) {
+				lines.add("§f倒计时: §e" + arena.getTimeLeft() + "秒");
+			}
 		}
 
 		lines.add("§e");

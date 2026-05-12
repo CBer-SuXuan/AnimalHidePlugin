@@ -5,29 +5,34 @@ import lombok.Setter;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.*;
 
 /**
- * 竞技场 (房间) 类
  * 代表一个独立进行的游戏对局
  */
 
 @Getter
+@Setter
 public class Arena {
 
 	private final GameManager gameManager;
 	private final String arenaName;
-	@Setter
 	private GameState state;
-	@Setter
 	private BossBar timeBar;
-	@Setter
 	private int timeLeft = 0;
+	private ArenaMode arenaMode = ArenaMode.ANIMAL;  // 默认生物模式
+	private final Map<UUID, ArenaMode> modeVotes = new HashMap<>();  // 记录玩家模式投票
+	private final Map<UUID, PlayerRole> rolePreferences = new HashMap<>();  // 记录玩家身份偏好
 
 	// 配置参数
 	private final int minPlayers;
@@ -83,9 +88,33 @@ public class Arena {
 
 		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + maxPlayers + ")"));
 		gameManager.resetPlayerDataWithoutLobby(player, this);
+		giveLobbyItems(player);
 
 		// 检查是否达到最低人数以触发倒计时
 		checkStartCondition();
+	}
+
+	/**
+	 * 发放等待大厅的交互物品
+	 */
+	private void giveLobbyItems(Player player) {
+		ItemStack modeItem = new ItemStack(Material.RECOVERY_COMPASS);
+		ItemMeta modeMeta = modeItem.getItemMeta();
+		modeMeta.displayName(Component.text("▶ 选择游戏模式 ◀", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+		modeItem.setItemMeta(modeMeta);
+		player.getInventory().setItem(0, modeItem);
+
+		ItemStack roleItem = new ItemStack(Material.DIAMOND_HELMET);
+		ItemMeta roleMeta = roleItem.getItemMeta();
+		roleMeta.displayName(Component.text("▶ 选择期望身份 ◀", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+		roleItem.setItemMeta(roleMeta);
+		player.getInventory().setItem(4, roleItem);
+
+		ItemStack leaveItem = new ItemStack(Material.RED_BED);
+		ItemMeta leaveMeta = leaveItem.getItemMeta();
+		leaveMeta.displayName(Component.text("▶ 离开房间 ◀", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+		leaveItem.setItemMeta(leaveMeta);
+		player.getInventory().setItem(8, leaveItem);
 	}
 
 	/**
@@ -131,6 +160,20 @@ public class Arena {
 	}
 
 	/**
+	 * 获取指定模式的票数
+	 */
+	public int getModeVoteCount(ArenaMode mode) {
+		return (int) modeVotes.values().stream().filter(m -> m == mode).count();
+	}
+
+	/**
+	 * 获取指定身份偏好的人数
+	 */
+	public int getRolePreferenceCount(PlayerRole role) {
+		return (int) rolePreferences.values().stream().filter(r -> r == role).count();
+	}
+
+	/**
 	 * 重置房间
 	 */
 	public void reset() {
@@ -152,6 +195,9 @@ public class Arena {
 		this.players.clear();
 		this.hiders.clear();
 		this.seekers.clear();
+		this.rolePreferences.clear();
+		this.modeVotes.clear();
+		this.arenaMode = ArenaMode.ANIMAL;
 	}
 
 }
