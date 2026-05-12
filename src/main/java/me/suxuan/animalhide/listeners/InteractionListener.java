@@ -8,10 +8,7 @@ import me.suxuan.animalhide.game.*;
 import me.suxuan.animalhide.menus.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Color;
-import org.bukkit.FireworkEffect;
-import org.bukkit.Material;
-import org.bukkit.Particle;
+import org.bukkit.*;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Firework;
@@ -29,7 +26,9 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class InteractionListener implements Listener {
 
@@ -261,6 +260,31 @@ public class InteractionListener implements Listener {
 						}
 					}
 				}
+			} else if (arena.getSeekers().contains(player.getUniqueId())) {
+				if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+					ItemStack item = event.getItem();
+					if (item == null) return;
+
+					// 判定右键红石 (爆炸陷阱)
+					if (item.getType() == Material.REDSTONE) {
+						event.setCancelled(true); // 绝对取消，防止把红石铺在地上
+
+						if (player.hasPotionEffect(PotionEffectType.BLINDNESS)) {
+							player.sendActionBar(Component.text("还没到寻找者出动的时间，无法使用陷阱！", NamedTextColor.RED));
+							return;
+						}
+
+						if (player.hasCooldown(Material.REDSTONE)) {
+							player.sendActionBar(Component.text("陷阱还在冷却中！", NamedTextColor.RED));
+							return;
+						}
+
+						player.setCooldown(Material.REDSTONE, 20 * 20);
+
+						Location trapLoc = player.getLocation();
+						startExplosiveTrap(player, arena, trapLoc);
+					}
+				}
 			}
 		}
 	}
@@ -277,12 +301,100 @@ public class InteractionListener implements Listener {
 			new BukkitRunnable() {
 				@Override
 				public void run() {
-					if (me.libraryaddict.disguise.DisguiseAPI.getDisguise(player) == disguise) {
+					if (DisguiseAPI.getDisguise(player) == disguise) {
 						disguise.getWatcher().setGlowing(false);
 					}
 				}
 			}.runTaskLater(AnimalHidePlugin.getInstance(), ticks);
 		}
+	}
+
+	/**
+	 * 执行爆炸陷阱逻辑 (超强特效版：密集红圈 + 悬浮大红感叹号)
+	 */
+	private void startExplosiveTrap(Player seeker, Arena arena, Location loc) {
+		double radius = 5.0;
+		double radiusSquared = radius * radius;
+
+		new BukkitRunnable() {
+			int ticks = 60;
+
+			@Override
+			public void run() {
+				// 如果对局已经结束，停止陷阱
+				if (arena.getState() != GameState.PLAYING) {
+					cancel();
+					return;
+				}
+
+				if (ticks > 0) {
+					// 1. 每 20 Tick (1秒) 播放一次提示音
+					if (ticks % 20 == 0) {
+						int seconds = ticks / 20;
+						loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f);
+						arena.broadcast(Component.text("⚠ 寻找者 " + seeker.getName() + " 释放了陷阱！将在 " + seconds + " 秒后爆炸！", NamedTextColor.RED));
+					}
+
+					// 2. 每 4 Tick (0.2秒) 绘制一次高密度特效
+					if (ticks % 4 == 0) {
+						// 设置外圈的粒子大小为 1.5，感叹号的粒子大小为 2.5 (极其显眼)
+						Particle.DustOptions circleDust = new Particle.DustOptions(Color.RED, 5.5f);
+						Particle.DustOptions markDust = new Particle.DustOptions(Color.RED, 2.5f);
+
+						// 【新增】绘制更密集的底圈 (由原本的 16 个点增加到 32 个点)
+						for (double t = 0; t < Math.PI * 2; t += Math.PI / 16) {
+							double x = radius * Math.cos(t);
+							double z = radius * Math.sin(t);
+							loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(x, 0.2, z), 2, 0.05, 0, 0.05, 0, circleDust);
+						}
+
+						// 画感叹号下方的“点” (高度 0.6 到 0.8)
+						for (double y = 1.0; y <= 1.2; y += 0.1) {
+							loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, y, 0), 3, 0.05, 0.05, 0.05, 0, markDust);
+						}
+
+						// 画感叹号上方的“竖杠” (高度 1.3 到 2.8，比玩家头顶还高一点)
+						for (double y = 2.2; y <= 4; y += 0.1) {
+							loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, y, 0), 3, 0.05, 0.05, 0.05, 0, markDust);
+						}
+					}
+
+					// 3. 实时范围检测与躲藏者警示
+					List<UUID> hiderIds = new ArrayList<>(arena.getHiders());
+					for (UUID id : hiderIds) {
+						Player hider = Bukkit.getPlayer(id);
+						if (hider != null && hider.getLocation().distanceSquared(loc) <= radiusSquared) {
+							hider.sendActionBar(Component.text("⚠ 警告：你在爆炸陷阱范围内！快跑！", NamedTextColor.DARK_RED));
+						}
+					}
+
+					ticks--;
+				} else {
+					// === 爆炸时刻 ===
+					loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1f, 1f);
+					// 爆炸核心粒子加大
+					loc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, loc, 2);
+
+					// 【新增】爆炸的瞬间，在圈的边缘释放出一层猛烈的真实火焰和岩浆飞溅特效
+					for (double t = 0; t < Math.PI * 2; t += Math.PI / 16) {
+						Location edge = loc.clone().add(radius * Math.cos(t), 0.2, radius * Math.sin(t));
+						loc.getWorld().spawnParticle(Particle.FLAME, edge, 5, 0.2, 0.5, 0.2, 0.1);
+						loc.getWorld().spawnParticle(Particle.LAVA, edge, 1);
+					}
+
+					// 击杀判定
+					List<UUID> hiderIds = new ArrayList<>(arena.getHiders());
+					for (UUID id : hiderIds) {
+						Player hider = Bukkit.getPlayer(id);
+						if (hider != null && hider.getLocation().distanceSquared(loc) <= radiusSquared) {
+							gameManager.processHiderFound(arena, hider, seeker);
+						}
+					}
+
+					cancel();
+				}
+			}
+		}.runTaskTimer(AnimalHidePlugin.getInstance(), 0L, 1L);
 	}
 
 }

@@ -278,18 +278,71 @@ public class GameManager {
 	 */
 	public void equipSeeker(Player seeker) {
 		seeker.getInventory().clear();
+
+		// 基础护甲（可选，建议保留以增加对抗性）
 		seeker.getInventory().setHelmet(new ItemStack(Material.IRON_HELMET));
 		seeker.getInventory().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
 		seeker.getInventory().setLeggings(new ItemStack(Material.IRON_LEGGINGS));
 		seeker.getInventory().setBoots(new ItemStack(Material.IRON_BOOTS));
 
-		ItemStack sword = new ItemStack(Material.DIAMOND_SWORD);
-		ItemMeta meta = sword.getItemMeta();
-		if (meta != null) {
-			meta.setUnbreakable(true);
-			sword.setItemMeta(meta);
+		// 1. 木剑 (第 1 格，索引 0)
+		ItemStack sword = new ItemStack(Material.WOODEN_SWORD);
+		ItemMeta swordMeta = sword.getItemMeta();
+		swordMeta.setUnbreakable(true);
+		sword.setItemMeta(swordMeta);
+		seeker.getInventory().setItem(0, sword);
+
+		// 2. 弓 + 无限 (第 2 格，索引 1)
+		ItemStack bow = new ItemStack(Material.BOW);
+		ItemMeta bowMeta = bow.getItemMeta();
+		bowMeta.setUnbreakable(true);
+		bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.INFINITY, 1, true);
+		bow.setItemMeta(bowMeta);
+		seeker.getInventory().setItem(1, bow);
+
+		// 3. 爆炸陷阱 (第 3 格，索引 2)
+		ItemStack trap = new ItemStack(Material.REDSTONE); // 【修改】改为红石
+		ItemMeta trapMeta = trap.getItemMeta();
+		trapMeta.displayName(Component.text("★ 爆炸陷阱 (右键释放) ★", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+		trapMeta.lore(List.of(
+				Component.text("右键释放后 3 秒爆炸，消灭 5 格内所有躲藏者！", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("冷却时间: 30 秒", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+		));
+		trap.setItemMeta(trapMeta);
+		seeker.getInventory().setItem(2, trap);
+
+		// 4. 一根箭 (用于支持无限弓)
+		seeker.getInventory().setItem(9, new ItemStack(Material.ARROW, 1));
+	}
+
+	/**
+	 * 通用的击杀结算逻辑：处理躲藏者被发现并转化为寻找者
+	 */
+	public void processHiderFound(Arena arena, Player victim, Player seeker) {
+		if (!arena.getHiders().contains(victim.getUniqueId())) return;
+
+		arena.broadcast(Component.text("☠ ", NamedTextColor.GRAY)
+				.append(Component.text(victim.getName(), NamedTextColor.RED))
+				.append(Component.text(" 被 ", NamedTextColor.GRAY))
+				.append(Component.text(seeker.getName(), NamedTextColor.AQUA))
+				.append(Component.text(" 找到了！", NamedTextColor.GRAY)));
+
+		arena.getHiders().remove(victim.getUniqueId());
+		arena.getSeekers().add(victim.getUniqueId());
+
+		// 恢复状态并传送
+		victim.setHealth(20.0);
+		disguiseManager.undisguisePlayer(victim);
+		victim.teleportAsync(arena.getSeekerSpawn());
+		victim.sendMessage(Component.text("你已经被发现！现在你加入了寻找者阵营！", NamedTextColor.YELLOW));
+
+		// 给新变身的寻找者发装备
+		equipSeeker(victim);
+
+		// 检查游戏是否结束
+		if (arena.getHiders().isEmpty()) {
+			endGame(arena, PlayerRole.SEEKER);
 		}
-		seeker.getInventory().addItem(sword);
 	}
 
 	private void setupHider(Player hider, Arena arena, List<String> allowedAnimals) {

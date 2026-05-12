@@ -1,10 +1,8 @@
 package me.suxuan.animalhide.listeners;
 
-import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
-import me.suxuan.animalhide.game.PlayerRole;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
@@ -97,24 +95,6 @@ public class CombatListener implements Listener {
 	 * 处理躲藏者被击杀的逻辑
 	 */
 	private void handleHiderDeath(Arena arena, Player victim, Player killer) {
-		arena.broadcast(Component.text("☠ ", NamedTextColor.GRAY)
-				.append(Component.text(victim.getName(), NamedTextColor.RED))
-				.append(Component.text(" 被 ", NamedTextColor.GRAY))
-				.append(Component.text(killer.getName(), NamedTextColor.AQUA))
-				.append(Component.text(" 找到了！", NamedTextColor.GRAY)));
-
-		arena.getHiders().remove(victim.getUniqueId());
-		arena.getSeekers().add(victim.getUniqueId());
-
-		victim.setHealth(20.0);
-		AnimalHidePlugin.getInstance().getDisguiseManager().undisguisePlayer(victim);
-		victim.teleportAsync(arena.getSeekerSpawn());
-		victim.sendMessage(Component.text("你已经被发现！现在你加入了寻找者阵营！", NamedTextColor.YELLOW));
-
-		gameManager.equipSeeker(victim);
-
-		if (arena.getHiders().isEmpty()) {
-			gameManager.endGame(arena, PlayerRole.SEEKER);
-		}
+		gameManager.processHiderFound(arena, victim, killer);
 	}
 }
