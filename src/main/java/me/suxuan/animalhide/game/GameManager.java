@@ -552,6 +552,7 @@ public class GameManager {
 		for (UUID uuid : arena.getPlayers()) {
 			Player player = Bukkit.getPlayer(uuid);
 			resetPlayerData(player, arena);
+			updatePlayerVisibility(player);
 		}
 
 		arena.reset();
@@ -649,6 +650,9 @@ public class GameManager {
 
 			disguiseManager.undisguisePlayer(player);
 
+			player.setAllowFlight(false);
+			player.setFlying(false);
+
 			player.resetPlayerTime();
 			player.getInventory().clear();
 			player.setGameMode(GameMode.SURVIVAL);
@@ -660,23 +664,48 @@ public class GameManager {
 	}
 
 	/**
-	 * 更新玩家的可见性与 TAB 列表隔离
-	 * 规则：只有在同一个房间的玩家才能互相看见（包括在 TAB 里）
+	 * 更新玩家的可见性与 TAB 列表隔离 (优化版)
 	 */
 	public void updatePlayerVisibility(Player target) {
 		Arena targetArena = getArenaByPlayer(target);
+		boolean targetInActiveGame = (targetArena != null && targetArena.getState() == GameState.PLAYING);
 
 		for (Player online : Bukkit.getOnlinePlayers()) {
-			Arena onlineArena = getArenaByPlayer(online);
+			if (online.equals(target)) continue;
 
-			// 如果两人在同一个房间，或者两人都在主城大厅 (arena 都为 null)
-			if (targetArena == onlineArena) {
+			Arena onlineArena = getArenaByPlayer(online);
+			boolean onlineInActiveGame = (onlineArena != null && onlineArena.getState() == GameState.PLAYING);
+
+			// --- 核心逻辑 ---
+			// 1. 如果其中一方处于正在进行的对局中
+			if (targetInActiveGame || onlineInActiveGame) {
+				// 只有在同一个正在运行的房间，且符合旁观者逻辑时才可见
+				if (targetArena == onlineArena) {
+					// 这里保留你之前的旁观者逻辑
+					boolean targetIsSpec = targetArena.getSpectators().contains(target.getUniqueId());
+					boolean onlineIsSpec = onlineArena.getSpectators().contains(online.getUniqueId());
+
+					if (targetIsSpec && !onlineIsSpec) {
+						online.hidePlayer(plugin, target);
+						target.showPlayer(plugin, online);
+					} else if (!targetIsSpec && onlineIsSpec) {
+						target.hidePlayer(plugin, online);
+						online.showPlayer(plugin, target);
+					} else {
+						online.showPlayer(plugin, target);
+						target.showPlayer(plugin, online);
+					}
+				} else {
+					// 不在同一个房间，且有人在比赛，必须隐藏
+					online.hidePlayer(plugin, target);
+					target.hidePlayer(plugin, online);
+				}
+			}
+			// 2. 如果双方都不在“比赛中”（即都在大厅、等待中或结算中）
+			else {
+				// 全员互相可见，回归大厅大家庭
 				online.showPlayer(plugin, target);
 				target.showPlayer(plugin, online);
-			} else {
-				// 否则互相隐藏 (从画面和 TAB 中移除)
-				online.hidePlayer(plugin, target);
-				target.hidePlayer(plugin, online);
 			}
 		}
 	}

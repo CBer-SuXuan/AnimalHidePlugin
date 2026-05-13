@@ -2,6 +2,7 @@ package me.suxuan.animalhide.commands;
 
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
+import me.suxuan.animalhide.game.GameState;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -72,8 +73,19 @@ public class GameCommand implements CommandExecutor {
 				return true;
 			}
 
-			arena.addPlayer(target);
-
+			if (arena.getState() == GameState.PLAYING) {
+				// 如果游戏正在进行，作为旁观者加入
+				arena.addSpectator(target);
+				if (sender != target) {
+					sender.sendMessage(Component.text("已成功将玩家 " + target.getName() + " 作为旁观者加入游戏。", NamedTextColor.GREEN));
+				}
+			} else {
+				// 如果在等待大厅，正常加入
+				arena.addPlayer(target);
+				if (sender != target) {
+					sender.sendMessage(Component.text("已成功将玩家 " + target.getName() + " 加入地图 " + arenaName, NamedTextColor.GREEN));
+				}
+			}
 			return true;
 		}
 

@@ -206,7 +206,14 @@ public class InteractionListener implements Listener {
 
 		if (arena != null) {
 			if (arena.getState() != GameState.PLAYING) return;
-			if (arena.getHiders().contains(player.getUniqueId())) {
+
+			if (arena.getSpectators().contains(player.getUniqueId())) {
+				event.setCancelled(true);
+				ItemStack item = event.getItem();
+				if (item != null && item.getType() == Material.RED_BED) {
+					player.performCommand("hide leave");
+				}
+			} else if (arena.getHiders().contains(player.getUniqueId())) {
 
 				if (player.getInventory().getHeldItemSlot() == 7) {
 					event.setCancelled(true);

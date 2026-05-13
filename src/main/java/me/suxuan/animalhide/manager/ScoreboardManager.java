@@ -38,12 +38,12 @@ public class ScoreboardManager {
 		new BukkitRunnable() {
 			@Override
 			public void run() {
-				for (Arena arena : gameManager.getArenas().values()) {
-					for (UUID uuid : arena.getPlayers()) {
-						Player player = Bukkit.getPlayer(uuid);
-						if (player != null) {
-							updateBoard(player, arena);
-						}
+				for (Player player : Bukkit.getOnlinePlayers()) {
+					Arena arena = gameManager.getArenaByPlayer(player);
+					if (arena != null) {
+						updateBoard(player, arena); // 游戏内计分板
+					} else {
+						updateLobbyBoard(player); // 【新增】大厅计分板
 					}
 				}
 			}
@@ -88,12 +88,18 @@ public class ScoreboardManager {
 
 				// 如果阵营相同，就是盟友；否则就是敌人
 				if (isPlayerSeeker == isTargetSeeker) {
+					enemies.removeEntry(target.getName()); // 确保不在敌人队
 					if (!allies.hasEntry(target.getName())) allies.addEntry(target.getName());
 				} else {
+					allies.removeEntry(target.getName()); // 确保不在盟友队
 					if (!enemies.hasEntry(target.getName())) enemies.addEntry(target.getName());
 				}
 			}
 		} else {
+			Team allies = board.getTeam("ah_allies");
+			Team enemies = board.getTeam("ah_enemies");
+			if (allies != null) for (String entry : allies.getEntries()) allies.removeEntry(entry);
+			if (enemies != null) for (String entry : enemies.getEntries()) enemies.removeEntry(entry);
 			// 等待阶段尚未分配阵营，统一设置为灰色无碰撞
 			Team waitTeam = board.getTeam("ah_wait");
 			if (waitTeam == null) {
@@ -166,6 +172,45 @@ public class ScoreboardManager {
 			if (obj.getName().startsWith("ah_") && !obj.getName().equals(objName)) {
 				obj.unregister();
 			}
+		}
+	}
+
+	/**
+	 * 更新全服主城大厅的计分板
+	 */
+	private void updateLobbyBoard(Player player) {
+		org.bukkit.scoreboard.Scoreboard board = player.getScoreboard();
+		if (board == Bukkit.getScoreboardManager().getMainScoreboard()) {
+			board = Bukkit.getScoreboardManager().getNewScoreboard();
+			player.setScoreboard(board);
+		}
+
+		org.bukkit.scoreboard.Objective objective = board.getObjective("ah_lobby");
+		if (objective == null) {
+			objective = board.registerNewObjective("ah_lobby", "dummy",
+					Component.text("躲猫猫小游戏", NamedTextColor.GOLD).decoration(net.kyori.adventure.text.format.TextDecoration.BOLD, true));
+			objective.setDisplaySlot(org.bukkit.scoreboard.DisplaySlot.SIDEBAR);
+		}
+
+		// 构建大厅显示的文本
+		java.util.List<String> lines = new java.util.ArrayList<>();
+		lines.add("§1");
+		lines.add("§f玩家: §a" + player.getName());
+		lines.add("§f全服在线: §e" + Bukkit.getOnlinePlayers().size() + " 人");
+		lines.add("§2");
+		lines.add("§7正在主城闲逛...");
+		lines.add("§3");
+		lines.add("§7mcbi.top");
+
+		// 刷新计分板内容 (防止闪烁的替换写法)
+		for (String entry : board.getEntries()) {
+			if (!lines.contains(entry)) {
+				board.resetScores(entry);
+			}
+		}
+		int score = lines.size();
+		for (String line : lines) {
+			objective.getScore(line).setScore(score--);
 		}
 	}
 

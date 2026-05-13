@@ -1,5 +1,6 @@
 package me.suxuan.animalhide.listeners;
 
+import com.destroystokyo.paper.event.entity.ProjectileCollideEvent;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
@@ -63,6 +64,11 @@ public class CombatListener implements Listener {
 
 		if (!(event.getEntity() instanceof Player victim)) return;
 
+		if (arena.getSpectators().contains(victim.getUniqueId())) {
+			event.setCancelled(true);
+			return;
+		}
+
 		boolean attackerIsSeeker = arena.getSeekers().contains(attacker.getUniqueId());
 		boolean victimIsHider = arena.getHiders().contains(victim.getUniqueId());
 
@@ -92,6 +98,19 @@ public class CombatListener implements Listener {
 		} else {
 			// 禁止同阵营互殴
 			event.setCancelled(true);
+		}
+	}
+
+	/**
+	 * 让飞行道具 (如弓箭) 完美穿透旁观者
+	 */
+	@EventHandler
+	public void onProjectileCollide(ProjectileCollideEvent event) {
+		if (event.getCollidedWith() instanceof Player victim) {
+			Arena arena = gameManager.getArenaByPlayer(victim);
+			if (arena != null && arena.getSpectators().contains(victim.getUniqueId())) {
+				event.setCancelled(true);
+			}
 		}
 	}
 

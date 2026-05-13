@@ -45,6 +45,7 @@ public class Arena {
 	private final Set<UUID> players = new HashSet<>();
 	private final Set<UUID> hiders = new HashSet<>();
 	private final Set<UUID> seekers = new HashSet<>();
+	private final Set<UUID> spectators = new HashSet<>();
 
 	private final Location pos1;
 	private final Location pos2;
@@ -97,6 +98,37 @@ public class Arena {
 	}
 
 	/**
+	 * 以旁观者身份加入正在进行的游戏
+	 */
+	public void addSpectator(Player player) {
+		players.add(player.getUniqueId());
+		spectators.add(player.getUniqueId());
+
+		gameManager.resetPlayerDataWithoutLobby(player, this);
+
+		player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+
+		player.setAllowFlight(true);
+		player.setFlying(true);
+
+		player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false, false));
+
+		if (seekerSpawn != null) {
+			player.teleportAsync(seekerSpawn);
+		}
+
+		ItemStack leaveItem = new ItemStack(Material.RED_BED);
+		ItemMeta leaveMeta = leaveItem.getItemMeta();
+		leaveMeta.displayName(Component.text("▶ 离开游戏 ◀", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+		leaveItem.setItemMeta(leaveMeta);
+		player.getInventory().setItem(8, leaveItem);
+
+		gameManager.updatePlayerVisibility(player);
+
+		player.sendMessage(Component.text("你已作为旁观者加入！你可以飞行，但无法穿墙。", NamedTextColor.AQUA));
+	}
+
+	/**
 	 * 发放等待大厅的交互物品
 	 */
 	private void giveLobbyItems(Player player) {
@@ -127,6 +159,7 @@ public class Arena {
 		players.remove(uuid);
 		boolean wasHider = hiders.remove(uuid);
 		boolean wasSeeker = seekers.remove(uuid);
+		spectators.remove(uuid);
 
 		gameManager.resetPlayerData(player, this);
 		AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
@@ -199,6 +232,7 @@ public class Arena {
 		this.players.clear();
 		this.hiders.clear();
 		this.seekers.clear();
+		this.spectators.clear();
 		this.rolePreferences.clear();
 		this.modeVotes.clear();
 		this.arenaMode = ArenaMode.ANIMAL;
