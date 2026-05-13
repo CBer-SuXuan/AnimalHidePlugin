@@ -6,6 +6,7 @@ api-version: '1.21.11'
 
 author: SuXuan_Dev
 depend: [ LibsDisguises ]
+softdepend: [ PlaceholderAPI ]
 
 load: POSTWORLD
 

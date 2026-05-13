@@ -4,9 +4,11 @@ import lombok.Getter;
 import me.suxuan.animalhide.commands.GameCommand;
 import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.game.GameManager;
+import me.suxuan.animalhide.hooks.PAPIExpansion;
 import me.suxuan.animalhide.listeners.*;
 import me.suxuan.animalhide.manager.DisguiseManager;
 import me.suxuan.animalhide.manager.ScoreboardManager;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -33,6 +35,11 @@ public final class AnimalHidePlugin extends JavaPlugin {
 
 		// 注册指令
 		registerCommands();
+
+		if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
+			new PAPIExpansion(gameManager).register();
+			getComponentLogger().info("成功挂载 PlaceholderAPI，已注册占位符！");
+		}
 	}
 
 	private void initManagers() {
