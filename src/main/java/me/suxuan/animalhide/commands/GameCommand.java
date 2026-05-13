@@ -1,18 +1,28 @@
 package me.suxuan.animalhide.commands;
 
+import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
+import me.suxuan.animalhide.manager.TutorialManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.util.StringUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-public class GameCommand implements CommandExecutor {
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+public class GameCommand implements CommandExecutor, TabCompleter {
 
 	private final GameManager gameManager;
 
@@ -140,6 +150,83 @@ public class GameCommand implements CommandExecutor {
 			return true;
 		}
 
+		// ==========================================
+		// 生成教程npc指令 (/hide tutorial)
+		// ==========================================
+		if (args[0].equalsIgnoreCase("tutorial")) {
+			if (!sender.hasPermission("animalhide.admin") || !(sender instanceof Player p)) {
+				sender.sendMessage(Component.text("权限不足或必须在游戏内执行！", NamedTextColor.RED));
+				return true;
+			}
+
+			TutorialManager tm = AnimalHidePlugin.getInstance().getTutorialManager();
+
+			if (args.length < 2) {
+				p.sendMessage(Component.text("用法: /hide tutorial <pig|sheep|cow|chicken|all|remove>", NamedTextColor.RED));
+				return true;
+			}
+
+			String subAction = args[1].toLowerCase();
+
+			if (subAction.equals("remove")) {
+				tm.clearTutorialNPCs();
+				p.sendMessage(Component.text("已清空大厅所有的技能演示 NPC！", NamedTextColor.YELLOW));
+			} else {
+				// 执行生成逻辑
+				tm.spawnByType(p.getLocation(), subAction);
+				p.sendMessage(Component.text("已在你所在的位置生成了: " + subAction, NamedTextColor.GREEN));
+			}
+			return true;
+		}
+
 		return true;
+	}
+
+	// ==========================================
+	// 自动补全逻辑 (TabCompleter)
+	// ==========================================
+	@Override
+	public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+		List<String> completions = new ArrayList<>();
+
+		if (args.length == 1) {
+			List<String> subCommands = new ArrayList<>(Arrays.asList("join", "leave"));
+			if (sender.hasPermission("animalhide.admin")) {
+				subCommands.add("reload");
+				subCommands.add("tutorial");
+			}
+			StringUtil.copyPartialMatches(args[0], subCommands, completions);
+			Collections.sort(completions);
+			return completions;
+		}
+
+		if (args.length == 2) {
+			String subCmd = args[0].toLowerCase();
+
+			if (subCmd.equals("join")) {
+				List<String> arenaNames = new ArrayList<>();
+				if (gameManager.getArenas() != null) {
+					arenaNames.addAll(gameManager.getArenas().keySet());
+				}
+				StringUtil.copyPartialMatches(args[1], arenaNames, completions);
+				Collections.sort(completions);
+				return completions;
+			} else if (subCmd.equals("leave")) {
+				return null;
+			} else if (subCmd.equals("tutorial") && sender.hasPermission("animalhide.admin")) {
+				List<String> tutorialArgs = Arrays.asList("pig", "sheep", "cow", "chicken", "all", "remove");
+				StringUtil.copyPartialMatches(args[1], tutorialArgs, completions);
+				Collections.sort(completions);
+				return completions;
+			}
+		}
+
+		if (args.length == 3) {
+			if (args[0].equalsIgnoreCase("join")) {
+				return null;
+			}
+		}
+
+		return completions;
 	}
 }

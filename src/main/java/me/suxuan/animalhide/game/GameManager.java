@@ -378,28 +378,28 @@ public class GameManager {
 		// 3. 安全嘲讽 (第 4 格，索引 3)
 		ItemStack safeTaunt = new ItemStack(Material.PINK_DYE);
 		ItemMeta safeMeta = safeTaunt.getItemMeta();
-		safeMeta.displayName(Component.text("▶ 安全嘲讽 (少量粒子效果)", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+		safeMeta.displayName(Component.text("▶ 安全嘲讽 (CD10秒)", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
 		safeTaunt.setItemMeta(safeMeta);
 		hider.getInventory().setItem(3, safeTaunt);
 
 		// 4. 较为危险的嘲讽 (第 5 格，索引 4)
 		ItemStack modTaunt = new ItemStack(Material.GLOWSTONE_DUST);
 		ItemMeta modMeta = modTaunt.getItemMeta();
-		modMeta.displayName(Component.text("▶ 发光嘲讽 (暴露位置3秒)", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+		modMeta.displayName(Component.text("▶ 发光嘲讽 (CD15秒)", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
 		modTaunt.setItemMeta(modMeta);
 		hider.getInventory().setItem(4, modTaunt);
 
 		// 5. 烟花嘲讽 (第 6 格，索引 5)
 		ItemStack fwTaunt = new ItemStack(Material.FIREWORK_ROCKET);
 		ItemMeta fwMeta = fwTaunt.getItemMeta();
-		fwMeta.displayName(Component.text("▶ 烟花嘲讽 (发射大型烟花)", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+		fwMeta.displayName(Component.text("▶ 烟花嘲讽 (CD20秒)", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
 		fwTaunt.setItemMeta(fwMeta);
 		hider.getInventory().setItem(5, fwTaunt);
 
 		// 6. 危险嘲讽 (第 7 格，索引 6)
 		ItemStack dangTaunt = new ItemStack(Material.REDSTONE_TORCH);
 		ItemMeta dangMeta = dangTaunt.getItemMeta();
-		dangMeta.displayName(Component.text("▶ 危险嘲讽 (暴露位置10秒+自身减速5秒)", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+		dangMeta.displayName(Component.text("▶ 危险嘲讽 (CD30秒)", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
 		dangTaunt.setItemMeta(dangMeta);
 		hider.getInventory().setItem(6, dangTaunt);
 

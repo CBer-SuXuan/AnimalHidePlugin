@@ -234,9 +234,11 @@ public class InteractionListener implements Listener {
 						// 如果正在冷却中，直接忽略
 						if (player.hasCooldown(type)) return;
 
+						int sharedCooldown = 0;
+
 						// 执行对应嘲讽效果
 						if (type == Material.PINK_DYE) {
-							player.setCooldown(type, 20 * 10);
+							sharedCooldown = 20 * 10;
 							player.getWorld().spawnParticle(Particle.HEART, player.getLocation().add(0, 1, 0), 20, 0.5, 0.5, 0.5, 0);
 
 							arena.addMatchScore(player.getUniqueId(), 2);
@@ -244,7 +246,7 @@ public class InteractionListener implements Listener {
 							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 安全嘲讽！积分 +2", NamedTextColor.GREEN));
 
 						} else if (type == Material.GLOWSTONE_DUST) {
-							player.setCooldown(type, 20 * 15);
+							sharedCooldown = 20 * 15;
 							player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 60, 0, false, false, false));
 							applyDisguiseGlowing(player, 60);
 
@@ -253,8 +255,7 @@ public class InteractionListener implements Listener {
 							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 发光嘲讽！积分 +4", NamedTextColor.YELLOW));
 
 						} else if (type == Material.FIREWORK_ROCKET) {
-							player.setCooldown(type, 20 * 20);
-							// 生成一个完全静音的实体烟花
+							sharedCooldown = 20 * 20;
 							Firework fw = (Firework) player.getWorld().spawnEntity(player.getLocation(), EntityType.FIREWORK_ROCKET);
 							FireworkMeta fwm = fw.getFireworkMeta();
 							fwm.addEffect(FireworkEffect.builder().withColor(Color.RED).with(FireworkEffect.Type.BALL_LARGE).build());
@@ -262,13 +263,13 @@ public class InteractionListener implements Listener {
 							fw.setFireworkMeta(fwm);
 							fw.setSilent(true);
 
-							arena.addMatchScore(player.getUniqueId(), 6);
+							arena.addMatchScore(player.getUniqueId(), 7);
 
-							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 烟花嘲讽！积分 +6", NamedTextColor.GOLD));
+							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 烟花嘲讽！积分 +7", NamedTextColor.GOLD));
 
 						} else if (type == Material.REDSTONE_TORCH) {
-							player.setCooldown(type, 20 * 30);
-							player.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, player.getLocation().add(0, 1.5, 0), 100, 1, 2, 1, 0.05);
+							sharedCooldown = 20 * 30;
+							player.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, player.getLocation().add(0, 1.5, 0), 100, 0, 2, 0, 0.05);
 							player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 4, false, false, false));
 							player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 200, 0, false, false, false));
 							applyDisguiseGlowing(player, 200);
@@ -276,6 +277,13 @@ public class InteractionListener implements Listener {
 							arena.addMatchScore(player.getUniqueId(), 10);
 
 							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 危险嘲讽！积分 +10", NamedTextColor.RED));
+						}
+
+						if (sharedCooldown > 0) {
+							player.setCooldown(Material.PINK_DYE, sharedCooldown);
+							player.setCooldown(Material.GLOWSTONE_DUST, sharedCooldown);
+							player.setCooldown(Material.FIREWORK_ROCKET, sharedCooldown);
+							player.setCooldown(Material.REDSTONE_TORCH, sharedCooldown);
 						}
 					}
 				}
