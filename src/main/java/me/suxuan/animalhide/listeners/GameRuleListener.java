@@ -185,4 +185,12 @@ public class GameRuleListener implements Listener {
 			}
 		}
 	}
+
+	/**
+	 * 防止鸡下蛋
+	 */
+	@EventHandler
+	public void onTutorialChickenDrop(EntityDropItemEvent event) {
+		event.setCancelled(true);
+	}
 }

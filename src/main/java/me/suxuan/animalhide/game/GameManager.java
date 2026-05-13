@@ -191,6 +191,7 @@ public class GameManager {
 				setupSeeker(seeker, arena, hideTimeTicks);
 			}
 		}
+		arena.getOriginalSeekers().addAll(finalSeekerPool);
 
 		String listKey = (arena.getArenaMode() == ArenaMode.ANIMAL) ? "allowed-animals" : "allowed-monsters";
 		List<String> allowedEntities = configManager.getArenaConfigs().get(arena.getArenaName()).getStringList(listKey);
@@ -250,6 +251,8 @@ public class GameManager {
 				plugin.getComponentLogger().warn("尝试生成未知的 AI 动物类型: {}", animalStr);
 			}
 		}
+
+		System.out.println(arena.getAiAnimals().size());
 	}
 
 	private void setupSeeker(Player seeker, Arena arena, int hideTimeTicks) {
@@ -539,8 +542,18 @@ public class GameManager {
 		arena.setState(GameState.ENDING);
 
 		Set<UUID> winners = (winner == PlayerRole.SEEKER) ? arena.getSeekers() : arena.getHiders();
-		for (UUID u : winners) {
-			arena.addMatchScore(u, 20);
+		if (winner == PlayerRole.SEEKER) {
+			for (UUID u : arena.getSeekers()) {
+				if (arena.getOriginalSeekers().contains(u)) {
+					arena.addMatchScore(u, 20); // 初始母体寻找者：得全额 20 分
+				} else {
+					arena.addMatchScore(u, 5);  // 被抓后变节的感染者：只得 5 分助攻分
+				}
+			}
+		} else {
+			for (UUID u : arena.getHiders()) {
+				arena.addMatchScore(u, 20); // 胜利的躲藏者：得全额 20 分
+			}
 		}
 
 		String winnerMsg = winner == PlayerRole.SEEKER ? "§c寻找者" : "§a躲藏者";
@@ -549,7 +562,7 @@ public class GameManager {
 		arena.broadcast(Component.text(""));
 
 		// 2. 计算本局排名 (取出前三名)
-		List<java.util.Map.Entry<UUID, Integer>> sortedScores = new java.util.ArrayList<>(arena.getMatchScores().entrySet());
+		List<Map.Entry<UUID, Integer>> sortedScores = new ArrayList<>(arena.getMatchScores().entrySet());
 		sortedScores.sort((a, b) -> b.getValue().compareTo(a.getValue())); // 降序排序
 
 		arena.broadcast(Component.text("      【本局积分排行】", NamedTextColor.AQUA));
@@ -634,8 +647,7 @@ public class GameManager {
 
 		// 4. 从所有找到的楼层中，随机抽取一个
 		if (!validFloorYs.isEmpty()) {
-			int randomY = validFloorYs.get(random.nextInt(validFloorYs.size()));
-			return new Location(world, x, randomY, z);
+			return new Location(world, x, validFloorYs.getFirst(), z);
 		}
 
 		// 5. 兜底方案：退回最高点

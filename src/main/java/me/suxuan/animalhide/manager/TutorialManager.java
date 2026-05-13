@@ -6,6 +6,7 @@ import org.bukkit.Color;
 import org.bukkit.FireworkEffect;
 import org.bukkit.Location;
 import org.bukkit.Particle;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Firework;
@@ -17,6 +18,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class TutorialManager {
 
@@ -25,14 +27,13 @@ public class TutorialManager {
 
 	public TutorialManager(AnimalHidePlugin plugin) {
 		this.plugin = plugin;
-		startAnimationLoop();   // 开启粒子循环
+		// 插件启动时，从配置文件加载所有已保存的 NPC
+		loadTutorialNPCs();
+		startAnimationLoop();
 	}
 
 	/**
-	 * 根据类型在指定位置生成单个 NPC
-	 *
-	 * @param loc  位置
-	 * @param type "pig", "sheep", "cow", "chicken", 或 "all"
+	 * 根据类型生成 NPC 并保存到配置文件
 	 */
 	public void spawnByType(Location loc, String type) {
 		if (type.equalsIgnoreCase("all")) {
@@ -40,22 +41,12 @@ public class TutorialManager {
 			return;
 		}
 
-		switch (type.toLowerCase()) {
-			case "pig":
-				tutorialEntities.add(createNPC(loc, EntityType.PIG, "§a§l安全嘲讽 §7(粉色染料)"));
-				break;
-			case "sheep":
-				tutorialEntities.add(createNPC(loc, EntityType.SHEEP, "§e§l发光嘲讽 §7(荧石粉)"));
-				break;
-			case "cow":
-				tutorialEntities.add(createNPC(loc, EntityType.COW, "§6§l烟花嘲讽 §7(烟花火箭)"));
-				break;
-			case "chicken":
-				tutorialEntities.add(createNPC(loc, EntityType.CHICKEN, "§c§l危险嘲讽 §7(红石火把)"));
-				break;
-			default:
-				// 如果输入的类型不对，不做任何事
-				break;
+		// 1. 先生成实体
+		Entity entity = createSpecificNPC(loc, type);
+		if (entity != null) {
+			tutorialEntities.add(entity);
+			// 2. 保存到 config.yml 确保重启不丢失
+			saveNPCToConfig(loc, type);
 		}
 	}
 
@@ -67,22 +58,72 @@ public class TutorialManager {
 	}
 
 	/**
-	 * 创建“雕像”属性的实体
+	 * 内部方法：根据类型名创建对应的实体
 	 */
+	private Entity createSpecificNPC(Location loc, String type) {
+		switch (type.toLowerCase()) {
+			case "pig":
+				return createNPC(loc, EntityType.PIG, "§a§l安全嘲讽 §7(粉色染料)");
+			case "sheep":
+				return createNPC(loc, EntityType.SHEEP, "§e§l发光嘲讽 §7(荧石粉)");
+			case "cow":
+				return createNPC(loc, EntityType.COW, "§6§l烟花嘲讽 §7(烟花火箭)");
+			case "chicken":
+				return createNPC(loc, EntityType.CHICKEN, "§c§l危险嘲讽 §7(红石火把)");
+			default:
+				return null;
+		}
+	}
+
 	private Entity createNPC(Location loc, EntityType type, String name) {
 		LivingEntity entity = (LivingEntity) loc.getWorld().spawnEntity(loc, type);
-		entity.setAI(false); // 取消AI，呆在原地
-		entity.setInvulnerable(true); // 无敌
-		entity.setSilent(true); // 禁音
-		entity.setCollidable(false); // 取消碰撞箱推挤
-		entity.setPersistent(false); // 不保存到世界文件，防止重启无限复制
+		entity.setAI(false);
+		entity.setInvulnerable(true);
+		entity.setSilent(true);
+		entity.setCollidable(false);
+		// 依然保持 false，由插件逻辑控制生命周期
+		entity.setPersistent(false);
 		entity.customName(Component.text(name));
 		entity.setCustomNameVisible(true);
 		return entity;
 	}
 
 	/**
-	 * 清理所有教程 NPC
+	 * 将 NPC 信息存入 config.yml
+	 */
+	private void saveNPCToConfig(Location loc, String type) {
+		ConfigurationSection section = plugin.getConfig().getConfigurationSection("tutorial-npcs");
+		if (section == null) section = plugin.getConfig().createSection("tutorial-npcs");
+
+		// 使用时间戳或随机 ID 作为键
+		String id = String.valueOf(System.currentTimeMillis()) + (int) (Math.random() * 100);
+		ConfigurationSection npcSec = section.createSection(id);
+		npcSec.set("type", type);
+		npcSec.set("location", loc);
+
+		plugin.saveConfig();
+	}
+
+	/**
+	 * 启动时加载所有 NPC
+	 */
+	private void loadTutorialNPCs() {
+		ConfigurationSection section = plugin.getConfig().getConfigurationSection("tutorial-npcs");
+		if (section == null) return;
+
+		Set<String> keys = section.getKeys(false);
+		for (String key : keys) {
+			String type = section.getString(key + ".type");
+			Location loc = section.getLocation(key + ".location");
+			if (type != null && loc != null) {
+				Entity entity = createSpecificNPC(loc, type);
+				if (entity != null) tutorialEntities.add(entity);
+			}
+		}
+	}
+
+	/**
+	 * 清理所有 NPC 并清空配置
 	 */
 	public void clearTutorialNPCs() {
 		for (Entity entity : tutorialEntities) {

@@ -14,6 +14,8 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.*;
 
@@ -46,6 +48,7 @@ public class Arena {
 	private final Set<UUID> hiders = new HashSet<>();
 	private final Set<UUID> seekers = new HashSet<>();
 	private final Set<UUID> spectators = new HashSet<>();
+	private final Set<UUID> originalSeekers = new HashSet<>();
 
 	private final Location pos1;
 	private final Location pos2;
@@ -111,14 +114,18 @@ public class Arena {
 
 		player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
-		player.setAllowFlight(true);
-		player.setFlying(true);
-
-		player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false, false));
+		player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false, false));
 
 		if (seekerSpawn != null) {
 			player.teleportAsync(seekerSpawn);
 		}
+
+		Bukkit.getScheduler().runTaskLater(AnimalHidePlugin.getInstance(), () -> {
+			if (player.isOnline()) {
+				player.setAllowFlight(true);
+				player.setFlying(true);
+			}
+		}, 2L);
 
 		ItemStack leaveItem = new ItemStack(Material.RED_BED);
 		ItemMeta leaveMeta = leaveItem.getItemMeta();
@@ -248,6 +255,7 @@ public class Arena {
 		this.hiders.clear();
 		this.seekers.clear();
 		this.spectators.clear();
+		this.originalSeekers.clear();
 		this.rolePreferences.clear();
 		this.modeVotes.clear();
 		this.arenaMode = ArenaMode.ANIMAL;

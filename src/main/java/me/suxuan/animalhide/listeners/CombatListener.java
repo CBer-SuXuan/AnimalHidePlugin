@@ -47,6 +47,10 @@ public class CombatListener implements Listener {
 
 		Arena arena = gameManager.getArenaByPlayer(attacker);
 		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (arena.getSpectators().contains(attacker.getUniqueId())) {
+			event.setCancelled(true);
+			return;
+		}
 
 		// 寻找者砍错 AI
 		if (arena.getAiAnimals().contains(event.getEntity())) {
