@@ -238,13 +238,19 @@ public class InteractionListener implements Listener {
 						if (type == Material.PINK_DYE) {
 							player.setCooldown(type, 20 * 10);
 							player.getWorld().spawnParticle(Particle.HEART, player.getLocation().add(0, 1, 0), 20, 0.5, 0.5, 0.5, 0);
-							player.sendMessage(Component.text("发动了 安全嘲讽！", NamedTextColor.GREEN));
+
+							arena.addMatchScore(player.getUniqueId(), 2);
+
+							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 安全嘲讽！积分 +2", NamedTextColor.GREEN));
 
 						} else if (type == Material.GLOWSTONE_DUST) {
 							player.setCooldown(type, 20 * 15);
 							player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 60, 0, false, false, false));
 							applyDisguiseGlowing(player, 60);
-							player.sendMessage(Component.text("发动了 发光嘲讽！自身发光透视3秒！", NamedTextColor.YELLOW));
+
+							arena.addMatchScore(player.getUniqueId(), 4);
+
+							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 发光嘲讽！积分 +4", NamedTextColor.YELLOW));
 
 						} else if (type == Material.FIREWORK_ROCKET) {
 							player.setCooldown(type, 20 * 20);
@@ -255,15 +261,21 @@ public class InteractionListener implements Listener {
 							fwm.setPower(1);
 							fw.setFireworkMeta(fwm);
 							fw.setSilent(true);
-							player.sendMessage(Component.text("发动了 烟花嘲讽！烟花已升空！", NamedTextColor.GOLD));
+
+							arena.addMatchScore(player.getUniqueId(), 6);
+
+							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 烟花嘲讽！积分 +6", NamedTextColor.GOLD));
 
 						} else if (type == Material.REDSTONE_TORCH) {
 							player.setCooldown(type, 20 * 30);
 							player.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, player.getLocation().add(0, 1.5, 0), 100, 1, 2, 1, 0.05);
-							player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 2, false, false, false));
-							player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 60, 0, false, false, false));
-							applyDisguiseGlowing(player, 60);
-							player.sendMessage(Component.text("发动了 危险嘲讽！释放了暴露位置的浓烟并减速自身！", NamedTextColor.RED));
+							player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 4, false, false, false));
+							player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 200, 0, false, false, false));
+							applyDisguiseGlowing(player, 200);
+
+							arena.addMatchScore(player.getUniqueId(), 10);
+
+							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 危险嘲讽！积分 +10", NamedTextColor.RED));
 						}
 					}
 				}

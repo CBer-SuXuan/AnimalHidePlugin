@@ -6,6 +6,7 @@ import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.hooks.PAPIExpansion;
 import me.suxuan.animalhide.listeners.*;
+import me.suxuan.animalhide.manager.DatabaseManager;
 import me.suxuan.animalhide.manager.DisguiseManager;
 import me.suxuan.animalhide.manager.ScoreboardManager;
 import org.bukkit.Bukkit;
@@ -22,6 +23,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private DisguiseManager disguiseManager;
 	private GameManager gameManager;
 	private ScoreboardManager scoreboardManager;
+	private DatabaseManager databaseManager;
 
 	@Override
 	public void onEnable() {
@@ -47,6 +49,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		disguiseManager = new DisguiseManager(this);
 		gameManager = new GameManager(this, configManager, disguiseManager);
 		scoreboardManager = new ScoreboardManager(this, gameManager);
+		databaseManager = new DatabaseManager(this);
 	}
 
 	private void registerListeners() {
@@ -65,6 +68,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	@Override
 	public void onDisable() {
 		gameManager.emergencyCleanup();
+		databaseManager.close();
 	}
 
 }

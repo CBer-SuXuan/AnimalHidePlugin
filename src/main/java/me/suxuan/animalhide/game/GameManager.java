@@ -5,6 +5,7 @@ import lombok.Getter;
 import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.config.ConfigManager;
+import me.suxuan.animalhide.manager.DatabaseManager;
 import me.suxuan.animalhide.manager.DisguiseManager;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
@@ -13,6 +14,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
@@ -215,24 +217,14 @@ public class GameManager {
 		Location pos2 = arena.getPos2();
 		if (pos1 == null || pos2 == null || pos1.getWorld() == null) return;
 
-		org.bukkit.World world = pos1.getWorld();
+		World world = pos1.getWorld();
 		if (entities.isEmpty()) return;
 
 		int count = arena.getAiAnimalCount();
 		Random random = new Random();
 
-		int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
-		int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
-		int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
-		int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
-
 		for (int i = 0; i < count; i++) {
-			int randomX = minX + random.nextInt(maxX - minX + 1);
-			int randomZ = minZ + random.nextInt(maxZ - minZ + 1);
-
-			int highestY = world.getHighestBlockYAt(randomX, randomZ) + 1;
-			float randomYaw = random.nextFloat() * 360f;
-			Location spawnLoc = new Location(world, randomX + 0.5, highestY, randomZ + 0.5, randomYaw, 0);
+			Location spawnLoc = getSmartRandomLocation(pos1, pos2);
 
 			String animalStr = entities.get(random.nextInt(entities.size()));
 			try {
@@ -258,7 +250,6 @@ public class GameManager {
 				plugin.getComponentLogger().warn("尝试生成未知的 AI 动物类型: {}", animalStr);
 			}
 		}
-		plugin.getComponentLogger().info("已在竞技场 {} 生成了 {} 只 AI 动物。", arena.getArenaName(), count);
 	}
 
 	private void setupSeeker(Player seeker, Arena arena, int hideTimeTicks) {
@@ -330,6 +321,10 @@ public class GameManager {
 		arena.getHiders().remove(victim.getUniqueId());
 		arena.getSeekers().add(victim.getUniqueId());
 
+		arena.addMatchScore(seeker.getUniqueId(), 10); // 击杀得 10 分
+		arena.addMatchKill(seeker.getUniqueId()); // 记录 1 次击杀
+		seeker.sendMessage(Component.text("击杀躲藏者！积分 +10", NamedTextColor.GREEN));
+
 		// 恢复状态并传送
 		victim.setHealth(20.0);
 		disguiseManager.undisguisePlayer(victim);
@@ -383,28 +378,28 @@ public class GameManager {
 		// 3. 安全嘲讽 (第 4 格，索引 3)
 		ItemStack safeTaunt = new ItemStack(Material.PINK_DYE);
 		ItemMeta safeMeta = safeTaunt.getItemMeta();
-		safeMeta.displayName(Component.text("▶ 安全嘲讽 (微光特效)", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+		safeMeta.displayName(Component.text("▶ 安全嘲讽 (少量粒子效果)", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
 		safeTaunt.setItemMeta(safeMeta);
 		hider.getInventory().setItem(3, safeTaunt);
 
 		// 4. 较为危险的嘲讽 (第 5 格，索引 4)
 		ItemStack modTaunt = new ItemStack(Material.GLOWSTONE_DUST);
 		ItemMeta modMeta = modTaunt.getItemMeta();
-		modMeta.displayName(Component.text("▶ 发光嘲讽 (透视自身3秒)", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+		modMeta.displayName(Component.text("▶ 发光嘲讽 (暴露位置3秒)", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
 		modTaunt.setItemMeta(modMeta);
 		hider.getInventory().setItem(4, modTaunt);
 
 		// 5. 烟花嘲讽 (第 6 格，索引 5)
 		ItemStack fwTaunt = new ItemStack(Material.FIREWORK_ROCKET);
 		ItemMeta fwMeta = fwTaunt.getItemMeta();
-		fwMeta.displayName(Component.text("▶ 烟花嘲讽 (发射烟花)", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+		fwMeta.displayName(Component.text("▶ 烟花嘲讽 (发射大型烟花)", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
 		fwTaunt.setItemMeta(fwMeta);
 		hider.getInventory().setItem(5, fwTaunt);
 
 		// 6. 危险嘲讽 (第 7 格，索引 6)
 		ItemStack dangTaunt = new ItemStack(Material.REDSTONE_TORCH);
 		ItemMeta dangMeta = dangTaunt.getItemMeta();
-		dangMeta.displayName(Component.text("▶ 危险嘲讽 (暴露位置+自身减速)", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+		dangMeta.displayName(Component.text("▶ 危险嘲讽 (暴露位置10秒+自身减速5秒)", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
 		dangTaunt.setItemMeta(dangMeta);
 		hider.getInventory().setItem(6, dangTaunt);
 
@@ -515,6 +510,16 @@ public class GameManager {
 						timeBar.name(Component.text("⏳ 游戏剩余时间: " + timeLeft + " 秒", NamedTextColor.WHITE));
 					}
 
+					if (timeLeft % 15 == 0) {
+						for (UUID hiderId : arena.getHiders()) {
+							arena.addMatchScore(hiderId, 1);
+							Player hider = Bukkit.getPlayer(hiderId);
+							if (hider != null) {
+								hider.sendActionBar(Component.text("✔ 潜行存活奖励: 积分 +1", NamedTextColor.GREEN));
+							}
+						}
+					}
+
 					timeLeft--;
 				} else {
 					endGame(arena, PlayerRole.HIDER);
@@ -533,21 +538,45 @@ public class GameManager {
 	public void endGame(Arena arena, PlayerRole winner) {
 		arena.setState(GameState.ENDING);
 
-		Component winMessage;
-		if (winner == PlayerRole.HIDER) {
-			winMessage = Component.text("========================\n", NamedTextColor.GREEN)
-					.append(Component.text("      躲藏者 获得了胜利！\n", NamedTextColor.YELLOW))
-					.append(Component.text("========================", NamedTextColor.GREEN));
-		} else if (winner == PlayerRole.SEEKER) {
-			winMessage = Component.text("========================\n", NamedTextColor.RED)
-					.append(Component.text("      寻找者 获得了胜利！\n", NamedTextColor.YELLOW))
-					.append(Component.text("========================", NamedTextColor.RED));
-		} else {
-			winMessage = Component.text("========================\n", NamedTextColor.AQUA)
-					.append(Component.text("      管理员强制结束了游戏！\n", NamedTextColor.YELLOW))
-					.append(Component.text("========================", NamedTextColor.AQUA));
+		Set<UUID> winners = (winner == PlayerRole.SEEKER) ? arena.getSeekers() : arena.getHiders();
+		for (UUID u : winners) {
+			arena.addMatchScore(u, 20);
 		}
-		arena.broadcast(winMessage);
+
+		String winnerMsg = winner == PlayerRole.SEEKER ? "§c寻找者" : "§a躲藏者";
+		arena.broadcast(Component.text("=========================", NamedTextColor.YELLOW));
+		arena.broadcast(Component.text("      游戏结束！ " + winnerMsg + " 获得了胜利！", NamedTextColor.GOLD));
+		arena.broadcast(Component.text(""));
+
+		// 2. 计算本局排名 (取出前三名)
+		List<java.util.Map.Entry<UUID, Integer>> sortedScores = new java.util.ArrayList<>(arena.getMatchScores().entrySet());
+		sortedScores.sort((a, b) -> b.getValue().compareTo(a.getValue())); // 降序排序
+
+		arena.broadcast(Component.text("      【本局积分排行】", NamedTextColor.AQUA));
+		for (int i = 0; i < Math.min(3, sortedScores.size()); i++) {
+			UUID u = sortedScores.get(i).getKey();
+			int score = sortedScores.get(i).getValue();
+			Player p = Bukkit.getPlayer(u);
+			String name = p != null ? p.getName() : "离线玩家";
+
+			String rankColor = i == 0 ? "§6① " : (i == 1 ? "§e② " : "§7③ ");
+			arena.broadcast(Component.text("      " + rankColor + name + " §f- §a" + score + " 分"));
+		}
+		arena.broadcast(Component.text("=========================", NamedTextColor.YELLOW));
+
+		// 3. 将本局数据保存入库
+		DatabaseManager db = AnimalHidePlugin.getInstance().getDatabaseManager();
+		for (UUID uuid : arena.getPlayers()) {
+			Player p = Bukkit.getPlayer(uuid);
+			if (p == null) continue;
+			int scoreEarned = arena.getMatchScores().getOrDefault(uuid, 0);
+			int killsEarned = arena.getMatchKills(uuid);
+			int winEarned = winners.contains(uuid) ? 1 : 0;
+
+			// 异步入库
+			db.addStatsAsync(uuid, p.getName(), scoreEarned, winEarned, killsEarned);
+			p.sendMessage(Component.text("已结算入库：+" + scoreEarned + " 总积分", NamedTextColor.GRAY));
+		}
 
 		for (UUID uuid : arena.getPlayers()) {
 			Player player = Bukkit.getPlayer(uuid);
@@ -556,6 +585,61 @@ public class GameManager {
 		}
 
 		arena.reset();
+	}
+
+	/**
+	 * 智能获取安全的随机生成点 (完美支持多层建筑，基于矩形对角线两点)
+	 */
+	private Location getSmartRandomLocation(Location pos1, Location pos2) {
+		World world = pos1.getWorld();
+		if (world == null) return pos1; // 兜底防止世界未加载
+
+		Random random = new Random();
+
+		// 1. 获取矩形的最小和最大 X, Z 坐标
+		double minX = Math.min(pos1.getX(), pos2.getX());
+		double maxX = Math.max(pos1.getX(), pos2.getX());
+		double minZ = Math.min(pos1.getZ(), pos2.getZ());
+		double maxZ = Math.max(pos1.getZ(), pos2.getZ());
+
+		// 2. 在矩形范围内随机生成 X 和 Z
+		double x = minX + (maxX - minX) * random.nextDouble();
+		double z = minZ + (maxZ - minZ) * random.nextDouble();
+
+		int blockX = (int) Math.floor(x);
+		int blockZ = (int) Math.floor(z);
+
+		// 获取该坐标最高方块的 Y (加点冗余作为扫描上限)
+		int highestY = world.getHighestBlockYAt(blockX, blockZ) + 2;
+
+		// 扫描下限：取两点中较低的那个 Y，再往下 10 格 (或者直接用世界最低点)
+		int lowestY = Math.max(world.getMinHeight(), (int) Math.min(pos1.getY(), pos2.getY()) - 10);
+
+		List<Integer> validFloorYs = new ArrayList<>();
+
+		// 3. 从上往下垂直扫描，寻找所有“符合站立条件”的楼层
+		for (int y = highestY; y >= lowestY; y--) {
+			Block feet = world.getBlockAt(blockX, y, blockZ);
+			Block head = world.getBlockAt(blockX, y + 1, blockZ);
+			Block ground = world.getBlockAt(blockX, y - 1, blockZ);
+
+			// 判断条件：脚和头是空气/植物，脚下是实心方块
+			if (feet.isPassable() && head.isPassable() && ground.getType().isSolid()) {
+				// 排除岩浆块和仙人掌
+				if (ground.getType() != Material.MAGMA_BLOCK && ground.getType() != Material.CACTUS) {
+					validFloorYs.add(y);
+				}
+			}
+		}
+
+		// 4. 从所有找到的楼层中，随机抽取一个
+		if (!validFloorYs.isEmpty()) {
+			int randomY = validFloorYs.get(random.nextInt(validFloorYs.size()));
+			return new Location(world, x, randomY, z);
+		}
+
+		// 5. 兜底方案：退回最高点
+		return new Location(world, x, world.getHighestBlockYAt(blockX, blockZ) + 1, z);
 	}
 
 	/**

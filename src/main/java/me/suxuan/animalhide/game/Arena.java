@@ -53,6 +53,9 @@ public class Arena {
 
 	private final List<Entity> aiAnimals = new ArrayList<>();
 
+	private final Map<UUID, Integer> matchScores = new HashMap<>();
+	private final Map<UUID, Integer> matchKills = new HashMap<>();
+
 	public Arena(GameManager gameManager, String arenaName, int minPlayers, int maxPlayers, Location waitingLobby,
 	             Location hiderSpawn, Location seekerSpawn, Location pos1, Location pos2, int aiAnimalCount) {
 		this.gameManager = gameManager;
@@ -210,6 +213,18 @@ public class Arena {
 		return (int) rolePreferences.values().stream().filter(r -> r == role).count();
 	}
 
+	public void addMatchScore(UUID uuid, int score) {
+		matchScores.put(uuid, matchScores.getOrDefault(uuid, 0) + score);
+	}
+
+	public void addMatchKill(UUID uuid) {
+		matchKills.put(uuid, matchKills.getOrDefault(uuid, 0) + 1);
+	}
+
+	public int getMatchKills(UUID uuid) {
+		return matchKills.getOrDefault(uuid, 0);
+	}
+
 	/**
 	 * 重置房间
 	 */
@@ -236,6 +251,8 @@ public class Arena {
 		this.rolePreferences.clear();
 		this.modeVotes.clear();
 		this.arenaMode = ArenaMode.ANIMAL;
+		this.matchScores.clear();
+		this.matchKills.clear();
 	}
 
 }

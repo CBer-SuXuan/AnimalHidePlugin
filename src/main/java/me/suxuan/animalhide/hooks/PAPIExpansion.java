@@ -1,8 +1,10 @@
 package me.suxuan.animalhide.hooks;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
+import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
+import me.suxuan.animalhide.manager.DatabaseManager;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -90,21 +92,41 @@ public class PAPIExpansion extends PlaceholderExpansion {
 		// === 2. 玩家个人状态查询 (必须有玩家实体) ===
 		// ==========================================
 		if (player != null) {
-			// 用法: %animalhide_player_arena% -> 返回玩家当前所在的地图名
-			if (params.equals("player_arena")) {
-				Arena arena = gameManager.getArenaByPlayer(player);
-				return arena != null ? arena.getArenaName() : "大厅";
-			}
 
-			// 用法: %animalhide_player_role% -> 返回玩家当前的身份
-			if (params.equals("player_role")) {
-				Arena arena = gameManager.getArenaByPlayer(player);
-				if (arena != null) {
-					if (arena.getHiders().contains(player.getUniqueId())) return "§a躲藏者";
-					if (arena.getSeekers().contains(player.getUniqueId())) return "§c寻找者";
-					return "§7等待分配";
+			DatabaseManager db = AnimalHidePlugin.getInstance().getDatabaseManager();
+
+			switch (params) {
+				// %animalhide_stat_score% -> 玩家总积分
+				case "stat_score" -> {
+					return String.valueOf(db.getStat(player.getUniqueId(), "score"));
 				}
-				return "§8无";
+
+				// %animalhide_stat_wins% -> 玩家总胜场
+				case "stat_wins" -> {
+					return String.valueOf(db.getStat(player.getUniqueId(), "wins"));
+				}
+
+				// %animalhide_stat_kills% -> 玩家总击杀
+				case "stat_kills" -> {
+					return String.valueOf(db.getStat(player.getUniqueId(), "kills"));
+				}
+
+				// 用法: %animalhide_player_arena% -> 返回玩家当前所在的地图名
+				case "player_arena" -> {
+					Arena arena = gameManager.getArenaByPlayer(player);
+					return arena != null ? arena.getArenaName() : "大厅";
+				}
+
+				// 用法: %animalhide_player_role% -> 返回玩家当前的身份
+				case "player_role" -> {
+					Arena arena = gameManager.getArenaByPlayer(player);
+					if (arena != null) {
+						if (arena.getHiders().contains(player.getUniqueId())) return "§a躲藏者";
+						if (arena.getSeekers().contains(player.getUniqueId())) return "§c寻找者";
+						return "§7等待分配";
+					}
+					return "§8无";
+				}
 			}
 		}
 

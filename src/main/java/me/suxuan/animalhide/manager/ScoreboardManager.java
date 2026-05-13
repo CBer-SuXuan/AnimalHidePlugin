@@ -1,5 +1,6 @@
 package me.suxuan.animalhide.manager;
 
+import io.papermc.paper.scoreboard.numbers.NumberFormat;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.ArenaMode;
@@ -7,6 +8,7 @@ import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -43,11 +45,11 @@ public class ScoreboardManager {
 					if (arena != null) {
 						updateBoard(player, arena); // 游戏内计分板
 					} else {
-						updateLobbyBoard(player); // 【新增】大厅计分板
+						updateLobbyBoard(player); // 大厅计分板
 					}
 				}
 			}
-		}.runTaskTimer(plugin, 0L, 2L); // 【关键修改】改为 2 Tick(0.1秒) 极速轮询，消除视觉延迟
+		}.runTaskTimer(plugin, 0L, 2L);
 	}
 
 	/**
@@ -60,9 +62,9 @@ public class ScoreboardManager {
 			player.setScoreboard(board);
 		}
 
+		Team allies = board.getTeam("ah_allies");
 		if (arena.getState() == GameState.PLAYING) {
 			// 1. 创建盟友队伍 (绿色)
-			org.bukkit.scoreboard.Team allies = board.getTeam("ah_allies");
 			if (allies == null) {
 				allies = board.registerNewTeam("ah_allies");
 				allies.color(NamedTextColor.GREEN); // 设置名片和 Tab 颜色为绿
@@ -96,7 +98,6 @@ public class ScoreboardManager {
 				}
 			}
 		} else {
-			Team allies = board.getTeam("ah_allies");
 			Team enemies = board.getTeam("ah_enemies");
 			if (allies != null) for (String entry : allies.getEntries()) allies.removeEntry(entry);
 			if (enemies != null) for (String entry : enemies.getEntries()) enemies.removeEntry(entry);
@@ -164,6 +165,8 @@ public class ScoreboardManager {
 			newObj.getScore(line).setScore(score--);
 		}
 
+		newObj.numberFormat(NumberFormat.blank());
+
 		// 4. 将新内容推送到侧边栏
 		newObj.setDisplaySlot(DisplaySlot.SIDEBAR);
 
@@ -179,21 +182,22 @@ public class ScoreboardManager {
 	 * 更新全服主城大厅的计分板
 	 */
 	private void updateLobbyBoard(Player player) {
-		org.bukkit.scoreboard.Scoreboard board = player.getScoreboard();
+		Scoreboard board = player.getScoreboard();
 		if (board == Bukkit.getScoreboardManager().getMainScoreboard()) {
 			board = Bukkit.getScoreboardManager().getNewScoreboard();
 			player.setScoreboard(board);
 		}
 
-		org.bukkit.scoreboard.Objective objective = board.getObjective("ah_lobby");
+		Objective objective = board.getObjective("ah_lobby");
 		if (objective == null) {
 			objective = board.registerNewObjective("ah_lobby", "dummy",
-					Component.text("躲猫猫小游戏", NamedTextColor.GOLD).decoration(net.kyori.adventure.text.format.TextDecoration.BOLD, true));
-			objective.setDisplaySlot(org.bukkit.scoreboard.DisplaySlot.SIDEBAR);
+					Component.text("躲猫猫小游戏", NamedTextColor.GOLD).decoration(TextDecoration.BOLD, true));
+			objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+			objective.numberFormat(NumberFormat.blank());
 		}
 
 		// 构建大厅显示的文本
-		java.util.List<String> lines = new java.util.ArrayList<>();
+		List<String> lines = new ArrayList<>();
 		lines.add("§1");
 		lines.add("§f玩家: §a" + player.getName());
 		lines.add("§f全服在线: §e" + Bukkit.getOnlinePlayers().size() + " 人");
