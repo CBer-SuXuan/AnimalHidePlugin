@@ -86,7 +86,7 @@ public class GameManager {
 	 */
 	private void startCountdownTask(Arena arena) {
 		new BukkitRunnable() {
-			int countdown = 10; // 默认 10 秒倒计时
+			int countdown = 30; // 默认 10 秒倒计时
 
 			@Override
 			public void run() {
@@ -252,7 +252,6 @@ public class GameManager {
 			}
 		}
 
-		System.out.println(arena.getAiAnimals().size());
 	}
 
 	private void setupSeeker(Player seeker, Arena arena, int hideTimeTicks) {

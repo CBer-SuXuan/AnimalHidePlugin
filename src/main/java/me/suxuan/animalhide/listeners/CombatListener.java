@@ -88,10 +88,11 @@ public class CombatListener implements Listener {
 			if (victim.getHealth() - event.getFinalDamage() <= 0) {
 				event.setCancelled(true);
 				handleHiderDeath(arena, victim, attacker);
-			} else {
-				victim.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 40, 1, false, false, false));
-				victim.sendActionBar(Component.text("你受到了惊吓！快逃！", NamedTextColor.YELLOW));
 			}
+//			else {
+//				victim.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 40, 1, false, false, false));
+//				victim.sendActionBar(Component.text("你受到了惊吓！快逃！", NamedTextColor.YELLOW));
+//			}
 		} else if (attackerIsHider && victimIsSeeker) {
 			// 躲藏者 射中/攻击 寻找者
 			// 仅造成极小的伤害(0.1)用来触发原版的物理击退动作，不致死

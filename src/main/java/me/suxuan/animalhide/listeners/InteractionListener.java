@@ -231,6 +231,11 @@ public class InteractionListener implements Listener {
 
 						event.setCancelled(true);
 
+						if (type != Material.BLAZE_ROD && arena.getTimeBar() == null) {
+							player.sendActionBar(Component.text("还没到寻找者出动的时间，现在不能使用嘲讽哦！", NamedTextColor.RED));
+							return;
+						}
+
 						// 如果正在冷却中，直接忽略
 						if (player.hasCooldown(type)) return;
 
