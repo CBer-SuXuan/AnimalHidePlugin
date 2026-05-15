@@ -2,16 +2,16 @@ package me.suxuan.animalhide.listeners;
 
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
-import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.*;
-import me.suxuan.animalhide.menus.*;
+import me.suxuan.animalhide.menus.ModeMenu;
+import me.suxuan.animalhide.menus.ModeMenuHolder;
+import me.suxuan.animalhide.menus.RoleMenu;
+import me.suxuan.animalhide.menus.RoleMenuHolder;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -21,8 +21,6 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.FireworkMeta;
-import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -85,31 +83,6 @@ public class InteractionListener implements Listener {
 			player.closeInventory();
 		}
 
-		// 处理选择伪装生物GUI
-		if (arena != null && arena.getState() == GameState.PLAYING) {
-			if (event.getInventory().getHolder() instanceof DisguiseMenuHolder) {
-				event.setCancelled(true);
-
-				ItemStack clickedItem = event.getCurrentItem();
-				if (clickedItem == null || clickedItem.getType() == Material.AIR) return;
-
-				// 根据点击物品的材质反推 DisguiseType
-				// (例如 PIG_SPAWN_EGG -> 截取 PIG)
-				String materialName = clickedItem.getType().name();
-				if (materialName.endsWith("_SPAWN_EGG")) {
-					String animalName = materialName.replace("_SPAWN_EGG", "");
-					try {
-						DisguiseType newType = DisguiseType.valueOf(animalName);
-						AnimalHidePlugin.getInstance().getDisguiseManager().disguisePlayer(player, newType);
-						player.closeInventory();
-
-						player.sendMessage(Component.text("✔ 伪装切换成功！", NamedTextColor.GREEN));
-					} catch (IllegalArgumentException e) {
-						player.sendMessage(Component.text("✘ 无法切换到该伪装。", NamedTextColor.RED));
-					}
-				}
-			}
-		}
 	}
 
 	/**
@@ -147,13 +120,6 @@ public class InteractionListener implements Listener {
 					return;
 				}
 
-				if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-					ItemStack item = event.getItem();
-					if (item != null && item.getType() == Material.NETHER_STAR) {
-						event.setCancelled(true);
-						DisguiseMenu.openMenu(player, arena, AnimalHidePlugin.getInstance().getConfigManager());
-					}
-				}
 			}
 		}
 	}
@@ -172,6 +138,15 @@ public class InteractionListener implements Listener {
 
 			if (item.getType() == Material.BLAZE_ROD) {
 				event.setCancelled(true);
+
+				Long lockoutTime = arena.getDisguiseLockouts().get(player.getUniqueId());
+				if (lockoutTime != null && System.currentTimeMillis() < lockoutTime) {
+					long remainSec = (lockoutTime - System.currentTimeMillis()) / 1000;
+					player.sendActionBar(Component.text("危险嘲讽副作用！" + remainSec + " 秒内无法变换伪装！", NamedTextColor.RED));
+					player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+					return;
+				}
+
 				Entity clicked = event.getRightClicked();
 				String typeName = clicked.getType().name();
 
@@ -180,12 +155,13 @@ public class InteractionListener implements Listener {
 
 				if (allowed.contains(typeName)) {
 					try {
-						DisguiseType newType = DisguiseType.valueOf(typeName);
-						AnimalHidePlugin.getInstance().getDisguiseManager().disguisePlayer(player, newType);
+						AnimalHidePlugin.getInstance().getDisguiseManager().disguisePlayerAsEntity(player, clicked);
 
 						Component localizedName = Component.translatable(clicked.getType().translationKey(), NamedTextColor.YELLOW);
-						player.sendMessage(Component.text("✔ 已利用魔杖变身为: ", NamedTextColor.GREEN).append(localizedName));
+						player.sendMessage(Component.text("✔ 已利用魔杖精准变身为: ", NamedTextColor.GREEN).append(localizedName));
+						player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1f, 1f);
 					} catch (Exception ignored) {
+						player.sendMessage(Component.text("✘ 变身发生异常。", NamedTextColor.RED));
 					}
 				} else {
 					player.sendMessage(Component.text("✘ 这种生物不能用来伪装！", NamedTextColor.RED));
@@ -195,7 +171,7 @@ public class InteractionListener implements Listener {
 	}
 
 	/**
-	 * 监听玩家右键 (嘲讽道具使用)
+	 * 监听玩家右键
 	 */
 	@EventHandler
 	public void onPlayerInteractGame(PlayerInteractEvent event) {
@@ -227,96 +203,46 @@ public class InteractionListener implements Listener {
 					Material type = item.getType();
 
 					if (type == Material.PINK_DYE || type == Material.GLOWSTONE_DUST ||
-							type == Material.FIREWORK_ROCKET || type == Material.REDSTONE_TORCH || type == Material.BLAZE_ROD) {
+							type == Material.FIREWORK_ROCKET || type == Material.REDSTONE_TORCH) {
 
 						event.setCancelled(true);
 
-						if (type != Material.BLAZE_ROD && arena.getTimeBar() == null) {
+						if (arena.getTimeBar() == null) {
 							player.sendActionBar(Component.text("还没到寻找者出动的时间，现在不能使用嘲讽哦！", NamedTextColor.RED));
 							return;
 						}
 
-						// 如果正在冷却中，直接忽略
-						if (player.hasCooldown(type)) return;
-
-						int sharedCooldown = 0;
-
-						// 执行对应嘲讽效果
-						if (type == Material.PINK_DYE) {
-							sharedCooldown = 20 * 10;
-							player.getWorld().spawnParticle(Particle.HEART, player.getLocation().add(0, 1, 0), 20, 0.5, 0.5, 0.5, 0);
-
-							arena.addMatchScore(player.getUniqueId(), 2);
-
-							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 安全嘲讽！积分 +2", NamedTextColor.GREEN));
-
-						} else if (type == Material.GLOWSTONE_DUST) {
-							sharedCooldown = 20 * 15;
-							player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 60, 0, false, false, false));
-							applyDisguiseGlowing(player, 60);
-
-							arena.addMatchScore(player.getUniqueId(), 4);
-
-							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 发光嘲讽！积分 +4", NamedTextColor.YELLOW));
-
-						} else if (type == Material.FIREWORK_ROCKET) {
-							sharedCooldown = 20 * 20;
-							Firework fw = (Firework) player.getWorld().spawnEntity(player.getLocation(), EntityType.FIREWORK_ROCKET);
-							FireworkMeta fwm = fw.getFireworkMeta();
-							fwm.addEffect(FireworkEffect.builder().withColor(Color.RED).with(FireworkEffect.Type.BALL_LARGE).build());
-							fwm.setPower(1);
-							fw.setFireworkMeta(fwm);
-							fw.setSilent(true);
-
-							arena.addMatchScore(player.getUniqueId(), 7);
-
-							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 烟花嘲讽！积分 +7", NamedTextColor.GOLD));
-
-						} else if (type == Material.REDSTONE_TORCH) {
-							sharedCooldown = 20 * 30;
-							player.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, player.getLocation().add(0, 1.5, 0), 100, 0, 2, 0, 0.05);
-							player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 100, 4, false, false, false));
-							player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 200, 0, false, false, false));
-							applyDisguiseGlowing(player, 200);
-
-							arena.addMatchScore(player.getUniqueId(), 10);
-
-							arena.broadcast(Component.text("玩家" + player.getName() + "发动了 危险嘲讽！积分 +10", NamedTextColor.RED));
-						}
-
-						if (sharedCooldown > 0) {
-							player.setCooldown(Material.PINK_DYE, sharedCooldown);
-							player.setCooldown(Material.GLOWSTONE_DUST, sharedCooldown);
-							player.setCooldown(Material.FIREWORK_ROCKET, sharedCooldown);
-							player.setCooldown(Material.REDSTONE_TORCH, sharedCooldown);
-						}
+						AnimalHidePlugin.getInstance().getTauntManager().handleTaunt(player, arena, type);
 					}
 				}
-			} else if (arena.getSeekers().contains(player.getUniqueId())) {
-				if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-					ItemStack item = event.getItem();
-					if (item == null) return;
+			}
+		}
+	}
 
-					// 判定右键红石 (爆炸陷阱)
-					if (item.getType() == Material.REDSTONE) {
-						event.setCancelled(true); // 绝对取消，防止把红石铺在地上
+	@EventHandler
+	public void onSeekerUseSkill(PlayerInteractEvent event) {
+		Player player = event.getPlayer();
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
 
-						if (player.hasPotionEffect(PotionEffectType.BLINDNESS)) {
-							player.sendActionBar(Component.text("还没到寻找者出动的时间，无法使用陷阱！", NamedTextColor.RED));
-							return;
-						}
+		if (arena.getSeekers().contains(player.getUniqueId())) {
+			ItemStack item = event.getItem();
+			if (item != null && item.getType() == Material.SHEEP_SPAWN_EGG) {
+				event.setCancelled(true);
 
-						if (player.hasCooldown(Material.REDSTONE)) {
-							player.sendActionBar(Component.text("陷阱还在冷却中！", NamedTextColor.RED));
-							return;
-						}
-
-						player.setCooldown(Material.REDSTONE, 20 * 20);
-
-						Location trapLoc = player.getLocation();
-						startExplosiveTrap(player, arena, trapLoc);
-					}
+				if (player.hasPotionEffect(PotionEffectType.BLINDNESS)) {
+					player.sendActionBar(Component.text("还没到寻找者出动的时间，无法使用！", NamedTextColor.RED));
+					return;
 				}
+
+				if (player.hasCooldown(Material.SHEEP_SPAWN_EGG)) {
+					player.sendActionBar(Component.text("还在冷却中！", NamedTextColor.RED));
+					return;
+				}
+
+				player.setCooldown(Material.SHEEP_SPAWN_EGG, 20 * 20);
+
+				AnimalHidePlugin.getInstance().getExplosiveSheepManager().spawnSheep(player, arena);
 			}
 		}
 	}

@@ -1,8 +1,6 @@
 package me.suxuan.animalhide.game;
 
-import com.destroystokyo.paper.entity.ai.VanillaGoal;
 import lombok.Getter;
-import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.manager.DatabaseManager;
@@ -12,11 +10,14 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
-import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
@@ -196,6 +197,8 @@ public class GameManager {
 		String listKey = (arena.getArenaMode() == ArenaMode.ANIMAL) ? "allowed-animals" : "allowed-monsters";
 		List<String> allowedEntities = configManager.getArenaConfigs().get(arena.getArenaName()).getStringList(listKey);
 
+		plugin.getAiSpawnManager().spawnAIEntities(arena, allowedEntities);
+
 		for (int i = seekerCount; i < finalSeekerPool.size(); i++) {
 			UUID hiderId = finalSeekerPool.get(i);
 			Player hider = Bukkit.getPlayer(hiderId);
@@ -205,53 +208,7 @@ public class GameManager {
 			}
 		}
 
-		spawnAIEntities(arena, allowedEntities);
-
 		startHidePhaseTask(arena, hideTime);
-	}
-
-	/**
-	 * 在地图区域内随机生成 AI 实体
-	 */
-	private void spawnAIEntities(Arena arena, List<String> entities) {
-		Location pos1 = arena.getPos1();
-		Location pos2 = arena.getPos2();
-		if (pos1 == null || pos2 == null || pos1.getWorld() == null) return;
-
-		World world = pos1.getWorld();
-		if (entities.isEmpty()) return;
-
-		int count = arena.getAiAnimalCount();
-		Random random = new Random();
-
-		for (int i = 0; i < count; i++) {
-			Location spawnLoc = getSmartRandomLocation(pos1, pos2);
-
-			String animalStr = entities.get(random.nextInt(entities.size()));
-			try {
-				EntityType type = EntityType.valueOf(animalStr.toUpperCase());
-				Entity entity = world.spawnEntity(spawnLoc, type);
-				entity.setSilent(true);
-				if (entity instanceof Mob mob) {
-					Bukkit.getMobGoals().removeGoal(mob, VanillaGoal.LOOK_AT_PLAYER);
-				}
-				if (entity instanceof Ageable ageable) {
-					ageable.setAdult();
-				}
-				if (entity instanceof Sheep sheep) {
-					sheep.setColor(DyeColor.WHITE);
-				} else if (entity instanceof Wolf wolf) {
-					wolf.setVariant(Registry.WOLF_VARIANT.get(NamespacedKey.minecraft("pale")));
-				} else if (entity instanceof Cat cat) {
-					cat.setCatType(Registry.CAT_VARIANT.get(NamespacedKey.minecraft("tabby")));
-				}
-				arena.getAiAnimals().add(entity);
-
-			} catch (IllegalArgumentException e) {
-				plugin.getComponentLogger().warn("尝试生成未知的 AI 动物类型: {}", animalStr);
-			}
-		}
-
 	}
 
 	private void setupSeeker(Player seeker, Arena arena, int hideTimeTicks) {
@@ -272,39 +229,31 @@ public class GameManager {
 	public void equipSeeker(Player seeker) {
 		seeker.getInventory().clear();
 
-		// 基础护甲（可选，建议保留以增加对抗性）
-		seeker.getInventory().setHelmet(new ItemStack(Material.IRON_HELMET));
-		seeker.getInventory().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
-		seeker.getInventory().setLeggings(new ItemStack(Material.IRON_LEGGINGS));
-		seeker.getInventory().setBoots(new ItemStack(Material.IRON_BOOTS));
-
-		// 1. 木剑 (第 1 格，索引 0)
 		ItemStack sword = new ItemStack(Material.WOODEN_SWORD);
 		ItemMeta swordMeta = sword.getItemMeta();
 		swordMeta.setUnbreakable(true);
+		swordMeta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 3, true);
 		sword.setItemMeta(swordMeta);
 		seeker.getInventory().setItem(0, sword);
 
-		// 2. 弓 + 无限 (第 2 格，索引 1)
 		ItemStack bow = new ItemStack(Material.BOW);
 		ItemMeta bowMeta = bow.getItemMeta();
 		bowMeta.setUnbreakable(true);
 		bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.INFINITY, 1, true);
+		bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 3, true);
 		bow.setItemMeta(bowMeta);
 		seeker.getInventory().setItem(1, bow);
 
-		// 3. 爆炸陷阱 (第 3 格，索引 2)
-		ItemStack trap = new ItemStack(Material.REDSTONE); // 【修改】改为红石
-		ItemMeta trapMeta = trap.getItemMeta();
-		trapMeta.displayName(Component.text("★ 爆炸陷阱 (右键释放) ★", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+		ItemStack sheepTrap = new ItemStack(Material.SHEEP_SPAWN_EGG);
+		ItemMeta trapMeta = sheepTrap.getItemMeta();
+		trapMeta.displayName(Component.text("★ 爆炸绵羊 (右键释放) ★", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
 		trapMeta.lore(List.of(
-				Component.text("右键释放后 3 秒爆炸，消灭 5 格内所有躲藏者！", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("冷却时间: 30 秒", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+				Component.text("释放一只会爆炸的绵羊，清理周围的 AI 并伤害玩家！", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("冷却时间: 20 秒", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
 		));
-		trap.setItemMeta(trapMeta);
-		seeker.getInventory().setItem(2, trap);
+		sheepTrap.setItemMeta(trapMeta);
+		seeker.getInventory().setItem(2, sheepTrap);
 
-		// 4. 一根箭 (用于支持无限弓)
 		seeker.getInventory().setItem(9, new ItemStack(Material.ARROW, 1));
 	}
 
@@ -345,18 +294,15 @@ public class GameManager {
 	private void setupHider(Player hider, Arena arena, List<String> allowedAnimals) {
 		hider.teleportAsync(arena.getHiderSpawn());
 
-		String randomAnimalStr = allowedAnimals.get(new Random().nextInt(allowedAnimals.size()));
-		try {
-			DisguiseType type = DisguiseType.valueOf(randomAnimalStr.toUpperCase());
-			disguiseManager.disguisePlayer(hider, type);
-		} catch (IllegalArgumentException e) {
-			plugin.getComponentLogger().warn("未知的变身类型: {}", randomAnimalStr);
+		List<Entity> aiList = arena.getAiAnimals();
+		if (!aiList.isEmpty()) {
+			Entity randomAi = aiList.get(new Random().nextInt(aiList.size()));
+			disguiseManager.disguisePlayerAsEntity(hider, randomAi);
 		}
 
 		hider.sendMessage(Component.text("你是躲藏者！", NamedTextColor.GREEN));
 
 		equipHider(hider);
-
 	}
 
 	/**
@@ -446,7 +392,7 @@ public class GameManager {
 						Player s = Bukkit.getPlayer(seekerId);
 						if (s != null) {
 
-							s.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.1);
+							s.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.2);
 							s.getAttribute(Attribute.SNEAKING_SPEED).setBaseValue(0.3);
 							s.getAttribute(Attribute.JUMP_STRENGTH).setBaseValue(0.42);
 							s.removePotionEffect(PotionEffectType.BLINDNESS);
@@ -518,6 +464,21 @@ public class GameManager {
 							Player hider = Bukkit.getPlayer(hiderId);
 							if (hider != null) {
 								hider.sendActionBar(Component.text("✔ 潜行存活奖励: 积分 +1", NamedTextColor.GREEN));
+							}
+						}
+					}
+
+					if (timeLeft % 10 == 0) {
+						for (UUID hiderId : arena.getHiders()) {
+							Player hider = Bukkit.getPlayer(hiderId);
+							if (hider != null) {
+								ItemStack item = hider.getInventory().getItem(8);
+								int arrowCount = 0;
+								if (item != null && item.getType().equals(Material.ARROW))
+									arrowCount = item.getAmount();
+								if (arrowCount < 5) {
+									hider.getInventory().addItem(new ItemStack(Material.ARROW, 1));
+								}
 							}
 						}
 					}
@@ -597,60 +558,6 @@ public class GameManager {
 		}
 
 		arena.reset();
-	}
-
-	/**
-	 * 智能获取安全的随机生成点 (完美支持多层建筑，基于矩形对角线两点)
-	 */
-	private Location getSmartRandomLocation(Location pos1, Location pos2) {
-		World world = pos1.getWorld();
-		if (world == null) return pos1; // 兜底防止世界未加载
-
-		Random random = new Random();
-
-		// 1. 获取矩形的最小和最大 X, Z 坐标
-		double minX = Math.min(pos1.getX(), pos2.getX());
-		double maxX = Math.max(pos1.getX(), pos2.getX());
-		double minZ = Math.min(pos1.getZ(), pos2.getZ());
-		double maxZ = Math.max(pos1.getZ(), pos2.getZ());
-
-		// 2. 在矩形范围内随机生成 X 和 Z
-		double x = minX + (maxX - minX) * random.nextDouble();
-		double z = minZ + (maxZ - minZ) * random.nextDouble();
-
-		int blockX = (int) Math.floor(x);
-		int blockZ = (int) Math.floor(z);
-
-		// 获取该坐标最高方块的 Y (加点冗余作为扫描上限)
-		int highestY = world.getHighestBlockYAt(blockX, blockZ) + 2;
-
-		// 扫描下限：取两点中较低的那个 Y，再往下 10 格 (或者直接用世界最低点)
-		int lowestY = Math.max(world.getMinHeight(), (int) Math.min(pos1.getY(), pos2.getY()) - 10);
-
-		List<Integer> validFloorYs = new ArrayList<>();
-
-		// 3. 从上往下垂直扫描，寻找所有“符合站立条件”的楼层
-		for (int y = highestY; y >= lowestY; y--) {
-			Block feet = world.getBlockAt(blockX, y, blockZ);
-			Block head = world.getBlockAt(blockX, y + 1, blockZ);
-			Block ground = world.getBlockAt(blockX, y - 1, blockZ);
-
-			// 判断条件：脚和头是空气/植物，脚下是实心方块
-			if (feet.isPassable() && head.isPassable() && ground.getType().isSolid()) {
-				// 排除岩浆块和仙人掌
-				if (ground.getType() != Material.MAGMA_BLOCK && ground.getType() != Material.CACTUS) {
-					validFloorYs.add(y);
-				}
-			}
-		}
-
-		// 4. 从所有找到的楼层中，随机抽取一个
-		if (!validFloorYs.isEmpty()) {
-			return new Location(world, x, validFloorYs.getFirst(), z);
-		}
-
-		// 5. 兜底方案：退回最高点
-		return new Location(world, x, world.getHighestBlockYAt(blockX, blockZ) + 1, z);
 	}
 
 	/**

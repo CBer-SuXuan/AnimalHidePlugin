@@ -3,7 +3,11 @@ package me.suxuan.animalhide.listeners;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -97,13 +101,27 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onEntityPickupItem(EntityPickupItemEvent event) {
-		// 判断拾取物品的实体是否为玩家
 		if (event.getEntity() instanceof Player player) {
 			Arena arena = gameManager.getArenaByPlayer(player);
 
-			// 如果玩家在游戏中，直接取消拾取
 			if (arena != null && arena.getState() == GameState.PLAYING) {
+				// 拦截默认的物品进入背包动作
 				event.setCancelled(true);
+
+				// 检查是不是寻找者，且捡起的是不是便便 (可可豆)
+				Item item = event.getItem();
+				if (item.getItemStack().getType() == Material.COCOA_BEANS) {
+					if (arena.getSeekers().contains(player.getUniqueId())) {
+						// 寻找者捡到了便便！
+						arena.addMatchScore(player.getUniqueId(), 5);
+						player.sendMessage(Component.text("你发现了便便！来源: ", NamedTextColor.GREEN)
+								.append(Component.text(item.getName(), NamedTextColor.YELLOW))
+								.append(Component.text(" (积分 +5)", NamedTextColor.GRAY)));
+
+						player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ITEM_PICKUP, 1f, 1f);
+						item.remove();
+					}
+				}
 			}
 		}
 	}
@@ -193,4 +211,5 @@ public class GameRuleListener implements Listener {
 	public void onTutorialChickenDrop(EntityDropItemEvent event) {
 		event.setCancelled(true);
 	}
+
 }

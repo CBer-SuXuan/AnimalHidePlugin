@@ -10,16 +10,10 @@ import me.libraryaddict.disguise.disguisetypes.watchers.WolfWatcher;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.DyeColor;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
@@ -35,55 +29,6 @@ public class DisguiseManager {
 
 	public DisguiseManager(AnimalHidePlugin plugin) {
 		this.plugin = plugin;
-	}
-
-	/**
-	 * 将玩家变身为指定的动物
-	 *
-	 * @param player 目标玩家
-	 * @param type   变身的动物类型 (例如 DisguiseType.PIG)
-	 */
-	public void disguisePlayer(Player player, DisguiseType type) {
-		if (!type.isMob()) {
-			plugin.getComponentLogger().warn("尝试将玩家变为非生物类型: {}", type.name());
-			return;
-		}
-
-		MobDisguise disguise = new MobDisguise(type);
-
-		// 配置变身属性
-		disguise.setViewSelfDisguise(true);  // 设置玩家自己能看到自己的变身形态
-		disguise.setHideArmorFromSelf(false);
-		disguise.setHideHeldItemFromSelf(false);
-		disguise.setHearSelfDisguise(false);  // 静音
-
-		// 配置观察者属性
-		LivingWatcher watcher = disguise.getWatcher();
-		watcher.setGlowing(false);
-		watcher.setCustomNameVisible(false);
-		watcher.setPitchLock(0f);
-
-		if (watcher instanceof SheepWatcher sheepWatcher) {
-			sheepWatcher.setColor(DyeColor.WHITE);
-		} else if (watcher instanceof WolfWatcher wolfWatcher) {
-			try {
-				wolfWatcher.setVariant(Registry.WOLF_VARIANT.get(NamespacedKey.minecraft("pale")));
-			} catch (Throwable ignored) {
-			}
-		} else if (watcher instanceof CatWatcher catWatcher) {
-			try {
-				catWatcher.setType(Registry.CAT_VARIANT.get(NamespacedKey.minecraft("tabby")));
-			} catch (Throwable ignored) {
-			}
-		}
-
-		// 应用变身
-		DisguiseAPI.disguiseToAll(player, disguise);
-
-		giveDisguiseItemUI(player, type);
-
-		float actualSpeed = getVanillaSpeed(player, type);
-		player.setWalkSpeed(actualSpeed);
 	}
 
 	/**
@@ -160,5 +105,66 @@ public class DisguiseManager {
 		} catch (IllegalArgumentException ignored) {
 		}
 		return 0.2f;
+	}
+
+	public void disguisePlayerAsEntity(Player player, Entity targetEntity) {
+		DisguiseType type = DisguiseType.getType(targetEntity.getType());
+		if (!type.isMob()) {
+			plugin.getComponentLogger().warn("尝试将玩家变为非生物类型: {}", type.name());
+			return;
+		}
+
+		MobDisguise disguise = new MobDisguise(type);
+
+		// 1. 基础配置 (与原来一致)
+		disguise.setViewSelfDisguise(true);
+		disguise.setHideArmorFromSelf(false);
+		disguise.setHideHeldItemFromSelf(false);
+		disguise.setHearSelfDisguise(false);
+
+		LivingWatcher watcher = disguise.getWatcher();
+		watcher.setGlowing(false);
+		watcher.setCustomNameVisible(false);
+		watcher.setPitchLock(0f);
+
+		// 复制羊的颜色
+		switch (targetEntity) {
+			case Sheep sheepTarget when watcher instanceof SheepWatcher sheepWatcher ->
+					sheepWatcher.setColor(sheepTarget.getColor());
+
+
+			// 复制狼的变种 / 项圈颜色
+			case Wolf wolfTarget when watcher instanceof WolfWatcher wolfWatcher -> {
+				try {
+					wolfWatcher.setVariant(wolfTarget.getVariant());
+					if (wolfTarget.isTamed()) {
+						wolfWatcher.setCollarColor(wolfTarget.getCollarColor());
+					}
+				} catch (Throwable ignored) {
+				}
+			}
+
+			// 复制猫的品种
+			case Cat catTarget when watcher instanceof CatWatcher catWatcher -> {
+				try {
+					catWatcher.setType(catTarget.getCatType());
+				} catch (Throwable ignored) {
+				}
+			}
+
+			// 复制猪的鞍
+			case Pig pigTarget when watcher instanceof me.libraryaddict.disguise.disguisetypes.watchers.PigWatcher pigWatcher ->
+					pigWatcher.setSaddled(pigTarget.hasSaddle());
+			default -> {
+			}
+		}
+
+		// 3. 应用变身
+		DisguiseAPI.disguiseToAll(player, disguise);
+		giveDisguiseItemUI(player, type);
+
+		// 4. 调整移速
+		float actualSpeed = getVanillaSpeed(player, type);
+		player.setWalkSpeed(actualSpeed);
 	}
 }

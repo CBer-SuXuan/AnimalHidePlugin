@@ -6,11 +6,15 @@ import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
@@ -56,12 +60,9 @@ public class CombatListener implements Listener {
 		if (arena.getAiAnimals().contains(event.getEntity())) {
 			if (arena.getSeekers().contains(attacker.getUniqueId())) {
 				event.setDamage(0);
-				attacker.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, false, false, false));
-				attacker.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, false));
-			}
-			// 躲藏者不小心射中 AI，直接取消伤害，无惩罚
-			if (arena.getHiders().contains(attacker.getUniqueId())) {
 				event.setCancelled(true);
+
+				attacker.playSound(attacker.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.5f);
 			}
 			return;
 		}
@@ -89,20 +90,38 @@ public class CombatListener implements Listener {
 				event.setCancelled(true);
 				handleHiderDeath(arena, victim, attacker);
 			}
-//			else {
-//				victim.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 40, 1, false, false, false));
-//				victim.sendActionBar(Component.text("你受到了惊吓！快逃！", NamedTextColor.YELLOW));
-//			}
 		} else if (attackerIsHider && victimIsSeeker) {
 			// 躲藏者 射中/攻击 寻找者
-			// 仅造成极小的伤害(0.1)用来触发原版的物理击退动作，不致死
-			event.setDamage(0.1);
-			// 让寻找者短暂发光，暴露其位置给别的躲藏者
-			victim.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 60, 0, false, false, false));
-			attacker.sendActionBar(Component.text("命中寻找者！", NamedTextColor.GREEN));
-		} else {
-			// 禁止同阵营互殴
-			event.setCancelled(true);
+			if (event.getDamager() instanceof Projectile) {
+				event.setDamage(0.1); // 仅触发击退，不造成致死伤害
+
+				// 让寻找者短暂发光，暴露其位置给别的躲藏者
+				victim.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 60, 0, false, false, false));
+
+				int hits = arena.getArrowHits().getOrDefault(attacker.getUniqueId(), 0) + 1;
+				arena.getArrowHits().put(attacker.getUniqueId(), hits);
+
+				if (hits > 15) {
+					attacker.sendActionBar(Component.text("命中寻找者！弓箭已达到满级", NamedTextColor.GREEN));
+				}
+
+				if (hits % 5 == 0) { // 每命中 5 次升级一次
+					ItemStack bow = attacker.getInventory().getItem(1); // 假设弓在第2格
+					if (bow != null && bow.getType() == Material.BOW) {
+						int currentKb = bow.getEnchantmentLevel(Enchantment.KNOCKBACK);
+						bow.addUnsafeEnchantment(Enchantment.KNOCKBACK, currentKb + 1);
+
+						attacker.sendMessage(Component.text("精准射击！你的弓击退等级已升至 " + (currentKb + 1) + "！", NamedTextColor.GOLD));
+						attacker.playSound(attacker.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 2f);
+					}
+				} else {
+					attacker.sendActionBar(Component.text("命中寻找者！距离下次弓箭升级还需 " + (5 - (hits % 5)) + " 次", NamedTextColor.GREEN));
+					attacker.playSound(attacker.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+				}
+			} else {
+				// 如果是近战敲击，直接取消伤害
+				event.setCancelled(true);
+			}
 		}
 	}
 

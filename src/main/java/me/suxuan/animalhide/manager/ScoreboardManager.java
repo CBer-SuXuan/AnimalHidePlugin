@@ -1,6 +1,8 @@
 package me.suxuan.animalhide.manager;
 
 import io.papermc.paper.scoreboard.numbers.NumberFormat;
+import me.libraryaddict.disguise.DisguiseAPI;
+import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.ArenaMode;
@@ -118,21 +120,27 @@ public class ScoreboardManager {
 
 		// 1. 构建显示的文本行
 		List<String> lines = new ArrayList<>();
-		lines.add("§a"); // 空行作分隔
-		lines.add("§f地图: §a" + arena.getArenaName());
-		lines.add("§f状态: " + getStateString(arena.getState()));
-		lines.add("§b");
 
 		if (arena.getState() == GameState.PLAYING) {
-			String role = arena.getHiders().contains(player.getUniqueId()) ? "§a躲藏者" :
-					(arena.getSeekers().contains(player.getUniqueId()) ? "§c寻找者" : "§7旁观者");
-			lines.add("§f你的身份: " + role);
-			lines.add("§c");
-			lines.add("§f存活躲藏者: §a" + arena.getHiders().size());
-			lines.add("§f寻找者数量: §c" + arena.getSeekers().size());
-			lines.add("§d");
-			lines.add("§f剩余时间: §e" + formatTime(arena.getTimeLeft()));
+			boolean isHider = arena.getHiders().contains(player.getUniqueId());
+			boolean isSeeker = arena.getSeekers().contains(player.getUniqueId());
+			if (isHider) {
+				Disguise disguise = DisguiseAPI.getDisguise(player);
+				String type = disguise != null ? disguise.getType().name() : "UNKNOWN";
+				lines.addAll(getPixelArtWithChineseName(type));
+				lines.add("§d"); // 间距
+			}
+
+			String hiderSuffix = isHider ? " §7(你)" : "";
+			String seekerSuffix = isSeeker ? " §7(你)" : "";
+
+			lines.add("§f躲藏者: §a" + arena.getHiders().size() + hiderSuffix);
+			lines.add("§f寻找者: §c" + arena.getSeekers().size() + seekerSuffix);
 		} else if (arena.getState() == GameState.STARTING || arena.getState() == GameState.WAITING) {
+			lines.add("§a"); // 空行作分隔
+			lines.add("§f地图: §a" + arena.getArenaName());
+			lines.add("§f状态: " + getStateString(arena.getState()));
+			lines.add("§b");
 			lines.add("§f人数: §a" + arena.getPlayers().size() + "§8/§a" + arena.getMaxPlayers());
 
 			lines.add("§6");
@@ -148,7 +156,6 @@ public class ScoreboardManager {
 		lines.add("§e");
 		lines.add("§7mcbi.top");
 
-		// 缓存对比拦截：如果文本内容没有变，直接停止操作，不向客户端发包！
 		if (lines.equals(lastBoardData.get(player.getUniqueId()))) {
 			return;
 		}
@@ -239,5 +246,61 @@ public class ScoreboardManager {
 		int m = seconds / 60;
 		int s = seconds % 60;
 		return String.format("%02d:%02d", m, s);
+	}
+
+	/**
+	 * 获取像素头像及对应的中文名称
+	 */
+	private List<String> getPixelArtWithChineseName(String animalType) {
+		List<String> art = new ArrayList<>();
+		String chineseName;
+
+		switch (animalType.toUpperCase()) {
+			case "PIG":
+				art.add("  §d██████§1");
+				art.add("  §d█§0█§d██§0█§d█§2");
+				art.add("  §d██§f██§d██§3");
+				art.add("  §d█§0████§d█§4");
+				chineseName = "§d§l[ 猪 ]";
+				break;
+			case "COW":
+				art.add("  §f██§0██§f██§1");
+				art.add("  §f█§0█§f██§0█§f█§2");
+				art.add("  §f██§0██§f██§3");
+				art.add("  §f█§d████§f█§4");
+				chineseName = "§f§l[ 牛 ]";
+				break;
+			case "SHEEP":
+				art.add("  §f██████§1");
+				art.add("  §f█§0█§f██§0█§f█§2");
+				art.add("  §f██████§3");
+				art.add("  §f█§e████§f█§4");
+				chineseName = "§f§l[ 羊 ]";
+				break;
+			case "CHICKEN":
+				art.add("  §f██████§1");
+				art.add("  §f█§0█§f██§0█§f█§2");
+				art.add("  §f██§6██§f██§3");
+				art.add("  §f██§c██§f██§4");
+				chineseName = "§f§l[ 鸡 ]";
+				break;
+			case "WOLF":
+				art.add("  §8██████§1");
+				art.add("  §8█§f█§8██§f█§8█§2");
+				art.add("  §8██§f██§8██§3");
+				art.add("  §8█§0████§8█§4");
+				chineseName = "§7§l[ 狼 ]";
+				break;
+			default:
+				art.add("  §7██████§1");
+				art.add("  §7█§0█§7██§0█§7█§2");
+				art.add("  §7██████§3");
+				art.add("  §7██████§4");
+				chineseName = "§7§l[ 未知生物 ]";
+				break;
+		}
+		// 将中文名称居中对齐处理
+		art.add("    " + chineseName + "§5");
+		return art;
 	}
 }

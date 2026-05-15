@@ -6,10 +6,7 @@ import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.hooks.PAPIExpansion;
 import me.suxuan.animalhide.listeners.*;
-import me.suxuan.animalhide.manager.DatabaseManager;
-import me.suxuan.animalhide.manager.DisguiseManager;
-import me.suxuan.animalhide.manager.ScoreboardManager;
-import me.suxuan.animalhide.manager.TutorialManager;
+import me.suxuan.animalhide.manager.*;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -26,6 +23,9 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private ScoreboardManager scoreboardManager;
 	private DatabaseManager databaseManager;
 	private TutorialManager tutorialManager;
+	private AISpawnManager aiSpawnManager;
+	private TauntManager tauntManager;
+	private ExplosiveSheepManager explosiveSheepManager;
 
 	@Override
 	public void onEnable() {
@@ -53,6 +53,9 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		scoreboardManager = new ScoreboardManager(this, gameManager);
 		databaseManager = new DatabaseManager(this);
 		tutorialManager = new TutorialManager(this);
+		aiSpawnManager = new AISpawnManager(this);
+		tauntManager = new TauntManager(this);
+		explosiveSheepManager = new ExplosiveSheepManager(this);
 	}
 
 	private void registerListeners() {

@@ -50,6 +50,10 @@ public class Arena {
 	private final Set<UUID> spectators = new HashSet<>();
 	private final Set<UUID> originalSeekers = new HashSet<>();
 
+	private final Map<UUID, Integer> arrowHits = new HashMap<>();       // 记录射中猎人的次数
+	private final Map<UUID, Integer> fireworkUses = new HashMap<>();    // 记录烟花嘲讽的使用次数
+	private final Map<UUID, Long> disguiseLockouts = new HashMap<>();   // 记录禁止变身的到期时间戳
+
 	private final Location pos1;
 	private final Location pos2;
 	private final int aiAnimalCount;
@@ -256,6 +260,9 @@ public class Arena {
 		this.seekers.clear();
 		this.spectators.clear();
 		this.originalSeekers.clear();
+		this.arrowHits.clear();
+		this.fireworkUses.clear();
+		this.disguiseLockouts.clear();
 		this.rolePreferences.clear();
 		this.modeVotes.clear();
 		this.arenaMode = ArenaMode.ANIMAL;
