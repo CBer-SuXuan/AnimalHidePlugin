@@ -54,8 +54,7 @@ public class Arena {
 	private final Map<UUID, Integer> fireworkUses = new HashMap<>();    // 记录烟花嘲讽的使用次数
 	private final Map<UUID, Long> disguiseLockouts = new HashMap<>();   // 记录禁止变身的到期时间戳
 
-	private final Location pos1;
-	private final Location pos2;
+	private final List<Location> aiSpawns;
 	private final int aiAnimalCount;
 
 	private final List<Entity> aiAnimals = new ArrayList<>();
@@ -64,7 +63,7 @@ public class Arena {
 	private final Map<UUID, Integer> matchKills = new HashMap<>();
 
 	public Arena(GameManager gameManager, String arenaName, int minPlayers, int maxPlayers, Location waitingLobby,
-	             Location hiderSpawn, Location seekerSpawn, Location pos1, Location pos2, int aiAnimalCount) {
+	             Location hiderSpawn, Location seekerSpawn, List<Location> aiSpawns, int aiAnimalCount) {
 		this.gameManager = gameManager;
 		this.arenaName = arenaName;
 		this.minPlayers = minPlayers;
@@ -73,8 +72,7 @@ public class Arena {
 		this.hiderSpawn = hiderSpawn;
 		this.seekerSpawn = seekerSpawn;
 		this.state = GameState.WAITING;
-		this.pos1 = pos1;
-		this.pos2 = pos2;
+		this.aiSpawns = aiSpawns;
 		this.aiAnimalCount = aiAnimalCount;
 	}
 

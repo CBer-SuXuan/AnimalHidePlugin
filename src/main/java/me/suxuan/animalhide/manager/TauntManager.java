@@ -50,7 +50,7 @@ public class TauntManager {
 			// 2. 冒险嘲讽 (Risky Taunt) - CD 15秒，拉便便
 			// ==============================
 			cooldownSeconds = 15;
-			scoreReward = 5;
+			scoreReward = 4;
 
 			// 播放喧闹的声音 (随机选取)
 			Sound[] noisySounds = {Sound.ENTITY_VILLAGER_NO, Sound.BLOCK_ANVIL_LAND, Sound.ENTITY_DONKEY_ANGRY};
@@ -66,7 +66,7 @@ public class TauntManager {
 			itemEntity.setCustomName("§6" + player.getName() + " 的便便");
 			itemEntity.setCustomNameVisible(true);
 
-			player.sendMessage(Component.text("发动了 冒险嘲讽！积分 +5", NamedTextColor.YELLOW));
+			player.sendMessage(Component.text("发动了 冒险嘲讽！积分 +4", NamedTextColor.YELLOW));
 
 		} else if (tauntType == Material.FIREWORK_ROCKET) {
 			// ==============================
@@ -80,6 +80,16 @@ public class TauntManager {
 			}
 			arena.getFireworkUses().put(player.getUniqueId(), uses + 1);
 
+			int remaining = 5 - (uses + 1);
+			if (remaining > 0) {
+				ItemStack fwItem = player.getInventory().getItem(5);
+				if (fwItem != null && fwItem.getType() == Material.FIREWORK_ROCKET) {
+					fwItem.setAmount(remaining);
+				}
+			} else {
+				player.getInventory().setItem(5, new ItemStack(Material.AIR));
+			}
+
 			cooldownSeconds = 15;
 			scoreReward = 7;
 
@@ -89,7 +99,7 @@ public class TauntManager {
 			fwm.setPower(2); // 射得更高
 			fw.setFireworkMeta(fwm);
 
-			player.sendMessage(Component.text("发动了 烟花嘲讽！(剩余次数: " + (4 - uses) + ") 积分 +7", NamedTextColor.GOLD));
+			player.sendMessage(Component.text("发动了 烟花嘲讽！(剩余次数: " + remaining + ") 积分 +7", NamedTextColor.GOLD));
 
 		} else if (tauntType == Material.REDSTONE_TORCH) {
 			// ==============================
@@ -100,7 +110,7 @@ public class TauntManager {
 
 			// 给躲藏者加速，并禁止变身 10 秒
 			player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 1, false, false, false));
-			arena.getDisguiseLockouts().put(player.getUniqueId(), System.currentTimeMillis() + 10000L); // 锁 10 秒
+			arena.getDisguiseLockouts().put(player.getUniqueId(), System.currentTimeMillis() + 10000L);
 
 			// 获取模糊坐标
 			Location loc = player.getLocation();
@@ -117,19 +127,19 @@ public class TauntManager {
 					.append(Component.text(" 大致坐标: X:" + approxX + " ~ " + (approxX + 10) + ", Z:" + approxZ + " ~ " + (approxZ + 10), NamedTextColor.GRAY));
 
 			for (UUID seekerId : arena.getSeekers()) {
-				Player seeker = org.bukkit.Bukkit.getPlayer(seekerId);
+				Player seeker = Bukkit.getPlayer(seekerId);
 				if (seeker != null) {
 					seeker.sendMessage(warnMsg);
 					seeker.playSound(seeker.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.5f);
 				}
 			}
 
-			player.sendMessage(Component.text("发动了 危险嘲讽！你的位置已被通报，且10秒内无法变换伪装！快跑！积分 +15", NamedTextColor.DARK_RED));
+			player.sendMessage(Component.text("发动了 危险嘲讽！你的位置已被通报，且10秒内无法变换伪装！快跑！积分 +10", NamedTextColor.DARK_RED));
 		}
 
 		if (cooldownSeconds > 0) {
 			int ticks = cooldownSeconds * 20;
-			
+
 			player.setCooldown(Material.PINK_DYE, ticks);
 			player.setCooldown(Material.GLOWSTONE_DUST, ticks);
 			player.setCooldown(Material.FIREWORK_ROCKET, ticks);

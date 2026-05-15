@@ -20,7 +20,6 @@ public class ExplosiveSheepManager {
 	}
 
 	public void spawnSheep(Player seeker, Arena arena) {
-		if (seeker.hasCooldown(Material.SHEEP_SPAWN_EGG)) return;
 
 		Location loc = seeker.getLocation();
 		Sheep bombSheep = (Sheep) loc.getWorld().spawnEntity(loc, EntityType.SHEEP);

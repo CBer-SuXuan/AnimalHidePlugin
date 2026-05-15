@@ -179,6 +179,29 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 			return true;
 		}
 
+		// ==========================================
+		// 调试指令 (/hide debug)
+		// ==========================================
+		if (args[0].equalsIgnoreCase("debug")) {
+			if (!sender.hasPermission("animalhide.admin") || !(sender instanceof Player p)) {
+				sender.sendMessage(Component.text("权限不足或必须在游戏内执行！", NamedTextColor.RED));
+				return true;
+			}
+
+			Arena arena = gameManager.getArenaByPlayer(p);
+			if (arena == null) {
+				p.sendMessage(Component.text("你不在任何游戏中，无法查看数据！", NamedTextColor.RED));
+				return true;
+			}
+
+			p.sendMessage(Component.text("=== 当前房间实时数据 ===", NamedTextColor.GOLD));
+			p.sendMessage(Component.text("场上静态AI动物总数: " + arena.getAiAnimals().size(), NamedTextColor.AQUA));
+			p.sendMessage(Component.text("当前存活躲藏者: " + arena.getHiders().size(), NamedTextColor.GREEN));
+			p.sendMessage(Component.text("当前寻找者: " + arena.getSeekers().size(), NamedTextColor.RED));
+			p.sendMessage(Component.text("当前旁观者: " + arena.getSpectators().size(), NamedTextColor.GRAY));
+			return true;
+		}
+
 		return true;
 	}
 
@@ -194,6 +217,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 			if (sender.hasPermission("animalhide.admin")) {
 				subCommands.add("reload");
 				subCommands.add("tutorial");
+				subCommands.add("debug");
 			}
 			StringUtil.copyPartialMatches(args[0], subCommands, completions);
 			Collections.sort(completions);
