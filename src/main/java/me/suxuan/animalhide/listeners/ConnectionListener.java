@@ -45,7 +45,7 @@ public class ConnectionListener implements Listener {
 		Location mainLobby = AnimalHidePlugin.getInstance().getConfigManager().getLocation(
 				AnimalHidePlugin.getInstance().getConfigManager().getMainConfig().getConfigurationSection("main-lobby"));
 
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			Location hiderSpawn = arena.getHiderSpawn();
 
 			if (hiderSpawn != null && player.getWorld().equals(hiderSpawn.getWorld())) {

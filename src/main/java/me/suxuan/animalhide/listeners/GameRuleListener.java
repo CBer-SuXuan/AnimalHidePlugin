@@ -141,7 +141,7 @@ public class GameRuleListener implements Listener {
 		}
 
 		// 如果是 AI 动物之间的互相锁定 (如狼锁定羊)，通过所在世界来判断并取消
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			if (arena.getState() == GameState.PLAYING) {
 				// 如果这个发生寻敌事件的实体，处在正在游戏的地图世界中，就取消它的寻敌行为
 				if (arena.getHiderSpawn() != null && event.getEntity().getWorld().equals(arena.getHiderSpawn().getWorld())) {
@@ -170,7 +170,7 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onEntityTeleport(EntityTeleportEvent event) {
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
 				event.setCancelled(true);
 				return;
@@ -183,7 +183,7 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onEntityCombust(EntityCombustEvent event) {
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
 				event.setCancelled(true);
 				return;
@@ -196,7 +196,7 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onExplosionPrime(ExplosionPrimeEvent event) {
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
 				event.setCancelled(true);
 				return;

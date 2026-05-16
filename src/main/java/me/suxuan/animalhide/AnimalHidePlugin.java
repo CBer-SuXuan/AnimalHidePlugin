@@ -7,8 +7,10 @@ import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.hooks.PAPIExpansion;
 import me.suxuan.animalhide.listeners.*;
 import me.suxuan.animalhide.manager.*;
+import me.suxuan.slimearena.api.ArenaManager;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.PluginManager;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 @Getter
@@ -26,6 +28,8 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private AISpawnManager aiSpawnManager;
 	private TauntManager tauntManager;
 	private ExplosiveSheepManager explosiveSheepManager;
+
+	private ArenaManager arenaManager;
 
 	@Override
 	public void onEnable() {
@@ -47,9 +51,18 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	}
 
 	private void initManagers() {
+
+		RegisteredServiceProvider<ArenaManager> rsp = getServer().getServicesManager().getRegistration(ArenaManager.class);
+		if (rsp != null) {
+			this.arenaManager = rsp.getProvider();
+		} else {
+			getLogger().severe("无法找到 SlimeArenaAPI！");
+			getServer().getPluginManager().disablePlugin(this);
+		}
+
 		configManager = new ConfigManager(this);
 		disguiseManager = new DisguiseManager(this);
-		gameManager = new GameManager(this, configManager, disguiseManager);
+		gameManager = new GameManager(this, configManager, disguiseManager, arenaManager);
 		scoreboardManager = new ScoreboardManager(this, gameManager);
 		databaseManager = new DatabaseManager(this);
 		tutorialManager = new TutorialManager(this);

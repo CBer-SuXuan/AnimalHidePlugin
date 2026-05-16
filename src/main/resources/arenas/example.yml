@@ -1,14 +1,15 @@
-name: "示例地图"
+name: "农场躲猫猫"
+template-name: "farm"
 
 # 坐标点（坐标点必须有world,x,y,z，yaw和pitch可选）
 locations:
-  waiting-lobby: { world: "farm", x: -20.5, y: -50, z: -25.5, yaw: 0.0, pitch: 2.0 } # 游戏开始前的等待室
-  hider-spawn: { world: "farm", x: -5.5, y: -51, z: 19.5, yaw: 135.0, pitch: 10.0 } # 躲藏者出生点
-  seeker-spawn: { world: "farm", x: -15.5, y: -50, z: -16.5, yaw: 0, pitch: 10.0 } # 寻找者出生点
+  waiting-lobby: { x: -20.5, y: -50, z: -25.5, yaw: 0.0, pitch: 2.0 } # 游戏开始前的等待室
+  hider-spawn: { x: -5.5, y: -51, z: 19.5, yaw: 135.0, pitch: 10.0 } # 躲藏者出生点
+  seeker-spawn: { x: -15.5, y: -50, z: -16.5, yaw: 0, pitch: 10.0 } # 寻找者出生点
   ai-spawns:
-    point1: { world: "farm", x: 10, y: -60, z: 10 }
-    point2: { world: "farm", x: 20, y: -60, z: 5 }
-    point3: { world: "farm", x: 0, y: -60, z: 15 }
+    point1: { x: 10, y: -60, z: 10 }
+    point2: { x: 20, y: -60, z: 5 }
+    point3: { x: 0, y: -60, z: 15 }
 
 # 玩法参数
 settings:

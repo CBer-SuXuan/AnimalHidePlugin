@@ -4,6 +4,7 @@ import lombok.Getter;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -18,7 +19,6 @@ public class ConfigManager {
 
 	@Getter
 	private FileConfiguration mainConfig;
-	// 存储所有加载好的地图配置，Key 是文件名
 	@Getter
 	private final Map<String, FileConfiguration> arenaConfigs = new HashMap<>();
 
@@ -29,17 +29,13 @@ public class ConfigManager {
 
 	public void loadConfigs() {
 		arenaConfigs.clear();
-		
-		// 加载主配置
 		plugin.saveDefaultConfig();
 		plugin.reloadConfig();
 		this.mainConfig = plugin.getConfig();
 
-		// 加载 arenas 文件夹下的所有地图
 		File arenaFolder = new File(plugin.getDataFolder(), "arenas");
 		if (!arenaFolder.exists()) {
 			arenaFolder.mkdirs();
-			// 如果文件夹为空，加载示例配置
 			plugin.saveResource("arenas/example.yml", false);
 		}
 
@@ -48,22 +44,27 @@ public class ConfigManager {
 			for (File file : files) {
 				String arenaName = file.getName().replace(".yml", "");
 				arenaConfigs.put(arenaName, YamlConfiguration.loadConfiguration(file));
-				plugin.getComponentLogger().info("已加载地图配置: {}", arenaName);
+				plugin.getComponentLogger().info("已读取地图配置: {}", arenaName);
 			}
 		}
 	}
 
-	// 读取 Location 对象
+	/**
+	 * 读取带有指定世界的真实坐标 (用于主城 Lobby)
+	 */
 	public Location getLocation(ConfigurationSection section) {
 		if (section == null) return null;
-		return new Location(
-				Bukkit.getWorld(section.getString("world", "world")),
-				section.getDouble("x"),
-				section.getDouble("y"),
-				section.getDouble("z"),
-				(float) section.getDouble("yaw", 0.0),
-				(float) section.getDouble("pitch", 0.0)
-		);
+		World world = Bukkit.getWorld(section.getString("world", "world"));
+		return new Location(world, section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
+				(float) section.getDouble("yaw", 0.0), (float) section.getDouble("pitch", 0.0));
 	}
 
+	/**
+	 * 读取没有世界的动态模板坐标 (用于游戏房间内部，World将由系统后续动态绑定)
+	 */
+	public Location getDynamicLocation(ConfigurationSection section) {
+		if (section == null) return null;
+		return new Location(null, section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
+				(float) section.getDouble("yaw", 0.0), (float) section.getDouble("pitch", 0.0));
+	}
 }

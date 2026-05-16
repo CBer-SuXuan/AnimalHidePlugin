@@ -41,7 +41,7 @@ public class CombatListener implements Listener {
 		}
 
 		if (attacker == null) {
-			for (Arena arena : gameManager.getArenas().values()) {
+			for (Arena arena : gameManager.getActiveMatches()) {
 				if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getDamager())) {
 					event.setCancelled(true);
 				}

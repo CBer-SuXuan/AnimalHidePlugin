@@ -5,18 +5,14 @@ import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.manager.DatabaseManager;
 import me.suxuan.animalhide.manager.DisguiseManager;
+import me.suxuan.slimearena.api.ArenaManager;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -37,48 +33,140 @@ public class GameManager {
 	private final AnimalHidePlugin plugin;
 	private final ConfigManager configManager;
 	private final DisguiseManager disguiseManager;
+	private final ArenaManager slimeArenaManager;
 	private final Location mainLobby;
 
 	@Getter
-	private final Map<String, Arena> arenas = new HashMap<>();
+	private final Map<String, ArenaTemplate> templates = new HashMap<>();
+	@Getter
+	private final List<Arena> activeMatches = new ArrayList<>();
 
-	public GameManager(AnimalHidePlugin plugin, ConfigManager configManager, DisguiseManager disguiseManager) {
+	public GameManager(AnimalHidePlugin plugin, ConfigManager configManager, DisguiseManager disguiseManager, ArenaManager slimeArenaManager) {
 		this.plugin = plugin;
 		this.configManager = configManager;
 		this.disguiseManager = disguiseManager;
+		this.slimeArenaManager = slimeArenaManager;
 		this.mainLobby = configManager.getLocation(configManager.getMainConfig().getConfigurationSection("main-lobby"));
-		loadArenas();
+		loadTemplates();
 	}
 
 	/**
-	 * 将配置文件中的地图数据转化为 Arena 对象存入内存
+	 * 加载所有的地图配置为 Template 图纸
 	 */
-	private void loadArenas() {
-		for (Map.Entry<String, FileConfiguration> entry : configManager.getArenaConfigs().entrySet()) {
+	private void loadTemplates() {
+		templates.clear();
+		for (Map.Entry<String, org.bukkit.configuration.file.FileConfiguration> entry : configManager.getArenaConfigs().entrySet()) {
 			String name = entry.getKey();
-			FileConfiguration config = entry.getValue();
+			org.bukkit.configuration.file.FileConfiguration config = entry.getValue();
 
+			String templateName = config.getString("template-name", name);
 			int minPlayers = config.getInt("settings.min-players", 2);
 			int maxPlayers = config.getInt("settings.max-players", 12);
-			Location waiting = configManager.getLocation(config.getConfigurationSection("locations.waiting-lobby"));
-			Location hiderSpawn = configManager.getLocation(config.getConfigurationSection("locations.hider-spawn"));
-			Location seekerSpawn = configManager.getLocation(config.getConfigurationSection("locations.seeker-spawn"));
+
+			Location waiting = configManager.getDynamicLocation(config.getConfigurationSection("locations.waiting-lobby"));
+			Location hiderSpawn = configManager.getDynamicLocation(config.getConfigurationSection("locations.hider-spawn"));
+			Location seekerSpawn = configManager.getDynamicLocation(config.getConfigurationSection("locations.seeker-spawn"));
 
 			List<Location> aiSpawns = new ArrayList<>();
-			ConfigurationSection spawnsSec = config.getConfigurationSection("locations.ai-spawns");
+			org.bukkit.configuration.ConfigurationSection spawnsSec = config.getConfigurationSection("locations.ai-spawns");
 			if (spawnsSec != null) {
 				for (String key : spawnsSec.getKeys(false)) {
-					Location loc = configManager.getLocation(spawnsSec.getConfigurationSection(key));
+					Location loc = configManager.getDynamicLocation(spawnsSec.getConfigurationSection(key));
 					if (loc != null) aiSpawns.add(loc);
 				}
 			}
+			int aiAnimalCount = config.getInt("settings.ai-animal-count", 30);
 
-			int aiAnimalCount = config.getInt("settings.ai-animal-count", 10);
-
-			Arena arena = new Arena(this, name, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, aiAnimalCount);
-			arenas.put(name, arena);
+			ArenaTemplate template = new ArenaTemplate(name, templateName, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, aiAnimalCount);
+			templates.put(name, template);
+			plugin.getComponentLogger().info("已加载竞技场模板: {}", name);
 		}
-		plugin.getComponentLogger().info("已成功初始化 {} 个游戏房间。", arenas.size());
+	}
+
+	/**
+	 * 查询玩家当前所在的对局
+	 */
+	public Arena getArenaByPlayer(Player player) {
+		for (Arena match : activeMatches) {
+			if (match.getPlayers().contains(player.getUniqueId())) return match;
+		}
+		return null;
+	}
+
+	/**
+	 * 匹配系统
+	 */
+	public void joinMatchmaking(Player player, String mapName) {
+		if (getArenaByPlayer(player) != null) {
+			player.sendMessage(Component.text("你已经在游戏中了！", NamedTextColor.RED));
+			return;
+		}
+
+		ArenaTemplate template = templates.get(mapName);
+		if (template == null) {
+			player.sendMessage(Component.text("找不到名为 " + mapName + " 的地图！", NamedTextColor.RED));
+			return;
+		}
+
+		// 1. 尝试寻找正在等待且未满的同一地图对局
+		for (Arena match : activeMatches) {
+			if (match.getTemplate().equals(template) && match.getPlayers().size() < match.getMaxPlayers()) {
+				// ENDING 状态在此处代表世界正在生成中
+				if (match.getState() == GameState.WAITING || match.getState() == GameState.STARTING || match.getState() == GameState.ENDING) {
+					match.addPlayer(player);
+					return;
+				}
+			}
+		}
+
+		// 2. 如果没有可用的房间，或者全都满了/在游戏中，秒开新房！
+		String instanceName = template.getMapName() + "_" + UUID.randomUUID().toString().substring(0, 6);
+		Arena newMatch = new Arena(this, template, instanceName);
+		activeMatches.add(newMatch);
+
+		plugin.getComponentLogger().info("玩家 {} 触发了匹配秒开，正在生成新对局: {}", player.getName(), instanceName);
+
+		newMatch.addPlayer(player);
+
+		slimeArenaManager.createArenaAsync(template.getTemplateName(), instanceName).thenAccept(world -> {
+			Bukkit.getScheduler().runTask(plugin, () -> {
+				newMatch.setCurrentWorld(world);
+				newMatch.setState(GameState.WAITING);
+
+				for (UUID uuid : newMatch.getPlayers()) {
+					Player p = Bukkit.getPlayer(uuid);
+					if (p != null) newMatch.teleportAndInitPlayer(p);
+				}
+			});
+		}).exceptionally(ex -> {
+			plugin.getComponentLogger().error("生成对局世界失败: {}", instanceName, ex);
+			player.sendMessage(Component.text("服务器资源调度失败，请稍后再试！", NamedTextColor.RED));
+			activeMatches.remove(newMatch);
+			return null;
+		});
+	}
+
+	/**
+	 * 销毁并重建一个小游戏动态世界
+	 */
+	public void rebuildArenaWorld(Arena arena) {
+		arena.setState(GameState.ENDING);
+
+		String instanceName = arena.getTemplate().getTemplateName() + "_" + UUID.randomUUID().toString().substring(0, 6);
+		arena.setInstanceName(instanceName);
+
+		plugin.getComponentLogger().info("正在通过 SlimeAPI 生成竞技场 {} (使用模板: {})...", arena.getArenaName(), arena.getTemplate().getTemplateName());
+
+		slimeArenaManager.createArenaAsync(arena.getTemplate().getTemplateName(), instanceName).thenAccept(world -> {
+			Bukkit.getScheduler().runTask(plugin, () -> {
+				arena.setCurrentWorld(world);
+				arena.setState(GameState.WAITING);
+				plugin.getComponentLogger().info("✔ 竞技场 {} 世界生成完毕! (实例: {})", arena.getArenaName(), instanceName);
+			});
+		}).exceptionally(ex -> {
+			plugin.getComponentLogger().error("✘ 竞技场 {} 生成失败!", arena.getArenaName(), ex);
+			return null;
+		});
 	}
 
 	/**
@@ -568,7 +656,19 @@ public class GameManager {
 			updatePlayerVisibility(player);
 		}
 
-		arena.reset();
+		destroyArenaMatch(arena);
+	}
+
+	/**
+	 * 彻底销毁一个对局及其对应的 Slime 世界
+	 */
+	public void destroyArenaMatch(Arena match) {
+		activeMatches.remove(match);
+		World oldWorld = match.getCurrentWorld();
+		if (oldWorld != null) {
+			plugin.getComponentLogger().info("对局结束/玩家清空，正在销毁临时世界 {}...", oldWorld.getName());
+			slimeArenaManager.discardArenaAsync(oldWorld, mainLobby);
+		}
 	}
 
 	/**
@@ -577,11 +677,11 @@ public class GameManager {
 	public void reload() {
 		stop();
 
-		arenas.clear();
+		activeMatches.clear();
 
 		configManager.loadConfigs();
 
-		loadArenas();
+		loadTemplates();
 
 		plugin.getComponentLogger().info(Component.text("插件配置与地图数据已成功重载！", NamedTextColor.GREEN));
 	}
@@ -590,7 +690,7 @@ public class GameManager {
 	 * 当服务器关闭或者插件重载时，强制结束所有正在进行的游戏
 	 */
 	public void stop() {
-		for (Arena arena : arenas.values()) {
+		for (Arena arena : activeMatches) {
 			endGame(arena, PlayerRole.SPECTATOR);
 		}
 	}
@@ -601,7 +701,7 @@ public class GameManager {
 	public void emergencyCleanup() {
 		Location mainLobby = configManager.getLocation(configManager.getMainConfig().getConfigurationSection("main-lobby"));
 
-		for (Arena arena : arenas.values()) {
+		for (Arena arena : activeMatches) {
 			if (arena.getState() != GameState.WAITING) {
 				for (UUID uuid : arena.getPlayers()) {
 					Player player = org.bukkit.Bukkit.getPlayer(uuid);
@@ -619,7 +719,7 @@ public class GameManager {
 						}
 					}
 				}
-				arena.reset();
+				destroyArenaMatch(arena);
 			}
 		}
 	}
@@ -631,15 +731,8 @@ public class GameManager {
 	 * @return 房间对象
 	 */
 	public Arena getArena(String name) {
-		return arenas.get(name);
-	}
-
-	/**
-	 * 根据玩家获取其所在的房间
-	 */
-	public Arena getArenaByPlayer(Player player) {
-		for (Arena arena : arenas.values()) {
-			if (arena.getPlayers().contains(player.getUniqueId())) {
+		for (Arena arena : activeMatches) {
+			if (arena.getArenaName().equals(name)) {
 				return arena;
 			}
 		}
@@ -677,7 +770,7 @@ public class GameManager {
 	}
 
 	/**
-	 * 更新玩家的可见性与 TAB 列表隔离 (优化版)
+	 * 更新玩家的可见性与 TAB 列表隔离
 	 */
 	public void updatePlayerVisibility(Player target) {
 		Arena targetArena = getArenaByPlayer(target);

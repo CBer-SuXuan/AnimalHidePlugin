@@ -3,7 +3,6 @@ package me.suxuan.animalhide.commands;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
-import me.suxuan.animalhide.game.GameState;
 import me.suxuan.animalhide.manager.TutorialManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -46,15 +45,9 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 				return true;
 			}
 
-			String arenaName = args[1];
-			Arena arena = gameManager.getArena(arenaName);
+			String mapName = args[1];
 
-			if (arena == null) {
-				sender.sendMessage(Component.text("找不到该地图！", NamedTextColor.RED));
-				return true;
-			}
-
-			Player target = null;
+			Player target;
 
 			// 如果参数有 3 个，说明指令指定了玩家 (例如控制台执行: /hide join example %player_name%)
 			if (args.length == 3) {
@@ -83,19 +76,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 				return true;
 			}
 
-			if (arena.getState() == GameState.PLAYING) {
-				// 如果游戏正在进行，作为旁观者加入
-				arena.addSpectator(target);
-				if (sender != target) {
-					sender.sendMessage(Component.text("已成功将玩家 " + target.getName() + " 作为旁观者加入游戏。", NamedTextColor.GREEN));
-				}
-			} else {
-				// 如果在等待大厅，正常加入
-				arena.addPlayer(target);
-				if (sender != target) {
-					sender.sendMessage(Component.text("已成功将玩家 " + target.getName() + " 加入地图 " + arenaName, NamedTextColor.GREEN));
-				}
-			}
+			gameManager.joinMatchmaking(target, mapName);
 			return true;
 		}
 
@@ -228,12 +209,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 			String subCmd = args[0].toLowerCase();
 
 			if (subCmd.equals("join")) {
-				List<String> arenaNames = new ArrayList<>();
-				if (gameManager.getArenas() != null) {
-					arenaNames.addAll(gameManager.getArenas().keySet());
-				}
-				StringUtil.copyPartialMatches(args[1], arenaNames, completions);
-				Collections.sort(completions);
+				completions.addAll(gameManager.getTemplates().keySet());
 				return completions;
 			} else if (subCmd.equals("leave")) {
 				return null;
