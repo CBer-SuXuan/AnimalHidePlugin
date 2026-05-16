@@ -2,6 +2,7 @@ package me.suxuan.animalhide.config;
 
 import lombok.Getter;
 import me.suxuan.animalhide.AnimalHidePlugin;
+import me.suxuan.animalhide.game.SpawnPoint;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -10,7 +11,9 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ConfigManager {
@@ -66,5 +69,104 @@ public class ConfigManager {
 		if (section == null) return null;
 		return new Location(null, section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
 				(float) section.getDouble("yaw", 0.0), (float) section.getDouble("pitch", 0.0));
+	}
+
+	/**
+	 * 读取一个 AI 生成点（动态模板坐标 + 可选的种类白名单 + 可选权重）。
+	 * <p>
+	 * 配置示例：
+	 * <pre>
+	 * pigpen:
+	 *   x: 10
+	 *   y: -60
+	 *   z: 10
+	 *   types: [PIG]      # 可选；不填则继承全局 allowed-animals
+	 *   weight: 3.0       # 可选；默认 1.0
+	 * </pre>
+	 */
+	public SpawnPoint getSpawnPoint(ConfigurationSection section) {
+		if (section == null) return null;
+		Location loc = getDynamicLocation(section);
+		if (loc == null) return null;
+
+		List<String> types = section.isList("types") ? section.getStringList("types") : null;
+		double weight = section.getDouble("weight", 1.0);
+		return new SpawnPoint(loc, types, weight);
+	}
+
+	/**
+	 * 获取某个地图的 yml 文件句柄。
+	 *
+	 * @return 文件对象，若不存在返回 null
+	 */
+	public File getArenaFile(String arenaName) {
+		File file = new File(plugin.getDataFolder(), "arenas/" + arenaName + ".yml");
+		return file.exists() ? file : null;
+	}
+
+	/**
+	 * 把一个 AI 生成点写入指定地图 yml，并刷新内存缓存。
+	 *
+	 * @param arenaName 地图名（yml 文件名去掉 .yml）
+	 * @param pointName yml 里的节点 key
+	 * @param point     要写入的点位
+	 * @return true 表示写入并保存成功
+	 */
+	public boolean saveSpawnPoint(String arenaName, String pointName, SpawnPoint point) {
+		File file = getArenaFile(arenaName);
+		if (file == null) return false;
+
+		FileConfiguration config = YamlConfiguration.loadConfiguration(file);
+		String path = "locations.ai-spawns." + pointName;
+
+		Location loc = point.getLocation();
+		config.set(path + ".x", loc.getX());
+		config.set(path + ".y", loc.getY());
+		config.set(path + ".z", loc.getZ());
+
+		if (point.hasTypes()) {
+			config.set(path + ".types", point.getTypes());
+		} else {
+			config.set(path + ".types", null);
+		}
+
+		if (point.getWeight() != 1.0) {
+			config.set(path + ".weight", point.getWeight());
+		} else {
+			config.set(path + ".weight", null);
+		}
+
+		try {
+			config.save(file);
+			arenaConfigs.put(arenaName, config);
+			return true;
+		} catch (IOException e) {
+			plugin.getComponentLogger().error("写入竞技场配置失败: {}", arenaName, e);
+			return false;
+		}
+	}
+
+	/**
+	 * 从指定地图 yml 中删除一个 AI 生成点。
+	 *
+	 * @return true 表示存在并删除成功；false 表示文件不存在或该点位不存在
+	 */
+	public boolean removeSpawnPoint(String arenaName, String pointName) {
+		File file = getArenaFile(arenaName);
+		if (file == null) return false;
+
+		FileConfiguration config = YamlConfiguration.loadConfiguration(file);
+		String path = "locations.ai-spawns." + pointName;
+		if (!config.contains(path)) return false;
+
+		config.set(path, null);
+		try {
+			config.save(file);
+			arenaConfigs.put(arenaName, config);
+			return true;
+		} catch (IOException e) {
+			plugin.getComponentLogger().error("写入竞技场配置失败: {}", arenaName, e);
+			return false;
+		}
 	}
 }

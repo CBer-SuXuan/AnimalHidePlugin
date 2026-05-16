@@ -21,11 +21,11 @@ public class ArenaTemplate {
 	private final Location configWaitingLobby;
 	private final Location configHiderSpawn;
 	private final Location configSeekerSpawn;
-	private final List<Location> configAiSpawns;
+	private final List<SpawnPoint> configAiSpawns;
 
 	public ArenaTemplate(String mapName, String templateName, int minPlayers, int maxPlayers,
 	                     Location configWaitingLobby, Location configHiderSpawn, Location configSeekerSpawn,
-	                     List<Location> configAiSpawns, int aiAnimalCount) {
+	                     List<SpawnPoint> configAiSpawns, int aiAnimalCount) {
 		this.mapName = mapName;
 		this.templateName = templateName;
 		this.minPlayers = minPlayers;

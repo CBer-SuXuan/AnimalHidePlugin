@@ -6,10 +6,14 @@ locations:
   waiting-lobby: { x: -20.5, y: -50, z: -25.5, yaw: 0.0, pitch: 2.0 } # 游戏开始前的等待室
   hider-spawn: { x: -5.5, y: -51, z: 19.5, yaw: 135.0, pitch: 10.0 } # 躲藏者出生点
   seeker-spawn: { x: -15.5, y: -50, z: -16.5, yaw: 0, pitch: 10.0 } # 寻找者出生点
+  # AI 生成点（每个点位以预设半径生成动物群落）
+  # 可选字段：
+  #   types  - 该点位允许生成的种类（数组）。不填则回退到下方 allowed-animals / allowed-monsters
+  #   weight - 抽签权重（数字，默认 1.0）。权重越大被选中作为生成中心的概率越大
   ai-spawns:
-    point1: { x: 10, y: -60, z: 10 }
-    point2: { x: 20, y: -60, z: 5 }
-    point3: { x: 0, y: -60, z: 15 }
+    point1: { x: 10, y: -60, z: 10 }                          # 不限种类，权重 1.0
+    pigpen: { x: 20, y: -60, z: 5, types: [PIG], weight: 3 }  # 只生成猪，权重 3.0
+    coop:   { x: 0, y: -60, z: 15, types: [CHICKEN] }         # 只生成鸡
 
 # 玩法参数
 settings:

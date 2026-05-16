@@ -9,11 +9,13 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -122,6 +124,24 @@ public class CombatListener implements Listener {
 				// 如果是近战敲击，直接取消伤害
 				event.setCancelled(true);
 			}
+		}
+	}
+
+	/**
+	 * 修复：躲藏者的击退弓射偏的箭会落地变成可拾取物品，导致捡起来累积。
+	 * 直接在射出瞬间把箭的拾取状态改为 DISALLOWED，所有玩家都捡不起来。
+	 * 寻找者的弓有 INFINITY 附魔，射出的箭天然就是 CREATIVE_ONLY，无需额外处理。
+	 */
+	@EventHandler
+	public void onHiderShootBow(EntityShootBowEvent event) {
+		if (!(event.getEntity() instanceof Player player)) return;
+
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getHiders().contains(player.getUniqueId())) return;
+
+		if (event.getProjectile() instanceof AbstractArrow arrow) {
+			arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
 		}
 	}
 

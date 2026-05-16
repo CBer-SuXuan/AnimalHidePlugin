@@ -161,7 +161,7 @@ public class DisguiseManager {
 
 		// 3. 应用变身
 		DisguiseAPI.disguiseToAll(player, disguise);
-		giveDisguiseItemUI(player, type);
+//		giveDisguiseItemUI(player, type);
 
 		// 4. 调整移速
 		float actualSpeed = getVanillaSpeed(player, type);

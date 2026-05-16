@@ -71,12 +71,12 @@ public class GameManager {
 				continue;
 			}
 
-			List<Location> aiSpawns = new ArrayList<>();
+			List<SpawnPoint> aiSpawns = new ArrayList<>();
 			org.bukkit.configuration.ConfigurationSection spawnsSec = config.getConfigurationSection("locations.ai-spawns");
 			if (spawnsSec != null) {
 				for (String key : spawnsSec.getKeys(false)) {
-					Location loc = configManager.getDynamicLocation(spawnsSec.getConfigurationSection(key));
-					if (loc != null) aiSpawns.add(loc);
+					SpawnPoint point = configManager.getSpawnPoint(spawnsSec.getConfigurationSection(key));
+					if (point != null) aiSpawns.add(point);
 				}
 			}
 			int aiAnimalCount = config.getInt("settings.ai-animal-count", 30);
@@ -499,7 +499,7 @@ public class GameManager {
 						Player s = Bukkit.getPlayer(seekerId);
 						if (s != null) {
 
-							s.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.2);
+							s.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.1);
 							s.getAttribute(Attribute.SNEAKING_SPEED).setBaseValue(0.3);
 							s.getAttribute(Attribute.JUMP_STRENGTH).setBaseValue(0.42);
 							s.removePotionEffect(PotionEffectType.BLINDNESS);
@@ -693,6 +693,17 @@ public class GameManager {
 
 			});
 		}
+	}
+
+	/**
+	 * 只重新加载地图模板（不结束进行中的对局）。
+	 * <p>
+	 * 进行中的 {@link Arena} 实例继续持有旧 {@link ArenaTemplate} 引用，不受影响；
+	 * 之后秒开的新房间会使用刷新后的模板。
+	 */
+	public void reloadTemplatesOnly() {
+		configManager.loadConfigs();
+		loadTemplates();
 	}
 
 	/**

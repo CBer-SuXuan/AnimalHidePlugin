@@ -2,6 +2,7 @@ package me.suxuan.animalhide.manager;
 
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
+import me.suxuan.animalhide.game.SpawnPoint;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.*;
@@ -21,14 +22,16 @@ public class AISpawnManager {
 	}
 
 	public void spawnAIEntities(Arena arena, List<String> allowedEntities) {
-		List<Location> centers = arena.getAiSpawns();
+		List<SpawnPoint> centers = arena.getAiSpawns();
 		if (centers == null || centers.isEmpty()) {
 			plugin.getComponentLogger().error("地图 {} 没有配置 AI 生成中心点(ai-spawns)！无法生成动物。", arena.getArenaName());
 			return;
 		}
 
-		World world = centers.getFirst().getWorld();
+		World world = centers.getFirst().getLocation().getWorld();
 		if (allowedEntities.isEmpty() || world == null) return;
+
+		double totalWeight = centers.stream().mapToDouble(SpawnPoint::getWeight).sum();
 
 		int totalAnimals = arena.getAiAnimalCount();
 		int spawnedCount = 0;
@@ -41,7 +44,8 @@ public class AISpawnManager {
 		while (spawnedCount < totalAnimals && attempts < maxAttempts) {
 			attempts++;
 
-			Location clusterCenter = centers.get(random.nextInt(centers.size()));
+			SpawnPoint cluster = pickWeighted(centers, totalWeight);
+			Location clusterCenter = cluster.getLocation();
 
 			Location spawnLoc = getValidLocationNear(clusterCenter, 5.0);
 			if (spawnLoc == null) continue;
@@ -54,7 +58,11 @@ public class AISpawnManager {
 			spawnLoc.setYaw(random.nextFloat() * 360f);
 			occupiedBlocks.add(blockKey);
 
-			String animalStr = allowedEntities.get(random.nextInt(allowedEntities.size()));
+			// 优先使用点位自定义的种类，否则回退到地图全局列表
+			List<String> pool = cluster.hasTypes() ? cluster.getTypes() : allowedEntities;
+			if (pool.isEmpty()) continue;
+
+			String animalStr = pool.get(random.nextInt(pool.size()));
 			try {
 				EntityType type = EntityType.valueOf(animalStr.toUpperCase());
 				Entity entity = world.spawnEntity(spawnLoc, type);
@@ -75,6 +83,21 @@ public class AISpawnManager {
 		}
 
 		plugin.getComponentLogger().info("地图 {} 配置需生成 {} 只，实际成功生成 {} 只动物。", arena.getArenaName(), totalAnimals, spawnedCount);
+	}
+
+	/**
+	 * 根据 weight 字段进行加权抽样。
+	 * 所有点位未设置 weight 时（默认 1.0），等价于均匀抽样。
+	 */
+	private SpawnPoint pickWeighted(List<SpawnPoint> points, double totalWeight) {
+		double r = random.nextDouble() * totalWeight;
+		double cumulative = 0;
+		for (SpawnPoint p : points) {
+			cumulative += p.getWeight();
+			if (r < cumulative) return p;
+		}
+		// 浮点精度兜底
+		return points.getLast();
 	}
 
 	private Location getValidLocationNear(Location center, double radius) {

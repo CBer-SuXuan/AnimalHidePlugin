@@ -96,9 +96,11 @@ public class Arena {
 		return translate(template.getConfigSeekerSpawn());
 	}
 
-	public List<Location> getAiSpawns() {
+	public List<SpawnPoint> getAiSpawns() {
 		if (template.getConfigAiSpawns() == null) return new ArrayList<>();
-		return template.getConfigAiSpawns().stream().map(this::translate).toList();
+		return template.getConfigAiSpawns().stream()
+				.map(sp -> sp.withLocation(translate(sp.getLocation())))
+				.toList();
 	}
 
 	public void addPlayer(Player player) {

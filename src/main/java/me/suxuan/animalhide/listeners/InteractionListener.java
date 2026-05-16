@@ -221,30 +221,56 @@ public class InteractionListener implements Listener {
 
 	@EventHandler
 	public void onSeekerUseSkill(PlayerInteractEvent event) {
+		if (event.getHand() != EquipmentSlot.HAND) return;
+
 		Player player = event.getPlayer();
 		Arena arena = gameManager.getArenaByPlayer(player);
 		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getSeekers().contains(player.getUniqueId())) return;
 
-		if (arena.getSeekers().contains(player.getUniqueId())) {
-			ItemStack item = event.getItem();
-			if (item != null && item.getType() == Material.SHEEP_SPAWN_EGG) {
-				event.setCancelled(true);
+		ItemStack item = event.getItem();
+		if (item == null || item.getType() != Material.SHEEP_SPAWN_EGG) return;
 
-				if (player.hasPotionEffect(PotionEffectType.BLINDNESS)) {
-					player.sendActionBar(Component.text("还没到寻找者出动的时间，无法使用！", NamedTextColor.RED));
-					return;
-				}
+		event.setCancelled(true);
+		tryReleaseExplosiveSheep(player, arena);
+	}
 
-				if (player.hasCooldown(Material.SHEEP_SPAWN_EGG)) {
-					player.sendActionBar(Component.text("还在冷却中！", NamedTextColor.RED));
-					return;
-				}
+	/**
+	 * 修复：寻找者右键已存在的实体（如静态 AI 绵羊）时，原版会触发"用绵羊蛋孵化幼崽"。
+	 * 在 PlayerInteractEntityEvent 中拦截并改为正常释放爆炸羊技能。
+	 */
+	@EventHandler
+	public void onSeekerUseSkillOnEntity(PlayerInteractEntityEvent event) {
+		if (event.getHand() != EquipmentSlot.HAND) return;
 
-				player.setCooldown(Material.SHEEP_SPAWN_EGG, 20 * 20);
+		Player player = event.getPlayer();
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getSeekers().contains(player.getUniqueId())) return;
 
-				AnimalHidePlugin.getInstance().getExplosiveSheepManager().spawnSheep(player, arena);
-			}
+		ItemStack item = player.getInventory().getItemInMainHand();
+		if (item.getType() != Material.SHEEP_SPAWN_EGG) return;
+
+		event.setCancelled(true);
+		tryReleaseExplosiveSheep(player, arena);
+	}
+
+	/**
+	 * 寻找者释放爆炸羊技能的统一入口（视障期/冷却判定与冷却写入）。
+	 */
+	private void tryReleaseExplosiveSheep(Player player, Arena arena) {
+		if (player.hasPotionEffect(PotionEffectType.BLINDNESS)) {
+			player.sendActionBar(Component.text("还没到寻找者出动的时间，无法使用！", NamedTextColor.RED));
+			return;
 		}
+
+		if (player.hasCooldown(Material.SHEEP_SPAWN_EGG)) {
+			player.sendActionBar(Component.text("还在冷却中！", NamedTextColor.RED));
+			return;
+		}
+
+		player.setCooldown(Material.SHEEP_SPAWN_EGG, 20 * 20);
+		AnimalHidePlugin.getInstance().getExplosiveSheepManager().spawnSheep(player, arena);
 	}
 
 	/**
