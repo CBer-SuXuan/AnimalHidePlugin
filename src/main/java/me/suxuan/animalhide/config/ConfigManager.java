@@ -169,4 +169,49 @@ public class ConfigManager {
 			return false;
 		}
 	}
+
+	/**
+	 * 把单个积分项写入指定地图 yml 的 {@code scoring} 节，并刷新内存缓存。
+	 *
+	 * @param arenaName 地图名
+	 * @param key       配置项 key（应使用 {@code ScoringConfig.KEY_xxx}）
+	 * @param value     新的积分值
+	 * @return true 表示写入成功
+	 */
+	public boolean saveScoring(String arenaName, String key, int value) {
+		File file = getArenaFile(arenaName);
+		if (file == null) return false;
+
+		FileConfiguration config = YamlConfiguration.loadConfiguration(file);
+		config.set("scoring." + key, value);
+		try {
+			config.save(file);
+			arenaConfigs.put(arenaName, config);
+			return true;
+		} catch (IOException e) {
+			plugin.getComponentLogger().error("写入竞技场积分配置失败: {}", arenaName, e);
+			return false;
+		}
+	}
+
+	/**
+	 * 删除某地图的整个 {@code scoring} 节，下次读取时会全部回退到默认值。
+	 *
+	 * @return true 表示存在并删除成功；false 表示文件不存在或写入失败
+	 */
+	public boolean resetScoring(String arenaName) {
+		File file = getArenaFile(arenaName);
+		if (file == null) return false;
+
+		FileConfiguration config = YamlConfiguration.loadConfiguration(file);
+		config.set("scoring", null);
+		try {
+			config.save(file);
+			arenaConfigs.put(arenaName, config);
+			return true;
+		} catch (IOException e) {
+			plugin.getComponentLogger().error("重置竞技场积分配置失败: {}", arenaName, e);
+			return false;
+		}
+	}
 }

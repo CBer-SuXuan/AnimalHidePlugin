@@ -81,7 +81,9 @@ public class GameManager {
 			}
 			int aiAnimalCount = config.getInt("settings.ai-animal-count", 30);
 
-			ArenaTemplate template = new ArenaTemplate(name, templateName, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, aiAnimalCount);
+			ScoringConfig scoring = ScoringConfig.from(config.getConfigurationSection("scoring"));
+
+			ArenaTemplate template = new ArenaTemplate(name, templateName, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, aiAnimalCount, scoring);
 			templates.put(name, template);
 			plugin.getComponentLogger().info("已加载竞技场模板: {}", name);
 		}
@@ -377,9 +379,10 @@ public class GameManager {
 		arena.getHiders().remove(victim.getUniqueId());
 		arena.getSeekers().add(victim.getUniqueId());
 
-		arena.addMatchScore(seeker.getUniqueId(), 10); // 击杀得 10 分
+		int killScore = arena.getTemplate().getScoring().getSeekerKillHider();
+		arena.addMatchScore(seeker.getUniqueId(), killScore); // 击杀得分，由该地图 scoring 配置决定
 		arena.addMatchKill(seeker.getUniqueId()); // 记录 1 次击杀
-		seeker.sendMessage(Component.text("击杀躲藏者！积分 +10", NamedTextColor.GREEN));
+		seeker.sendMessage(Component.text("击杀躲藏者！积分 +" + killScore, NamedTextColor.GREEN));
 
 		// 恢复状态并传送
 		victim.setHealth(20.0);
@@ -544,6 +547,10 @@ public class GameManager {
 			if (p != null) p.showBossBar(timeBar);
 		}
 
+		ScoringConfig scoring = arena.getTemplate().getScoring();
+		int survivalReward = scoring.getHiderSurvivalReward();
+		int survivalInterval = scoring.getHiderSurvivalInterval();
+
 		new BukkitRunnable() {
 			int timeLeft = durationSeconds;
 
@@ -565,17 +572,22 @@ public class GameManager {
 						timeBar.name(Component.text("⏳ 游戏剩余时间: " + timeLeft + " 秒", NamedTextColor.WHITE));
 					}
 
-					if (timeLeft % 15 == 0) {
+					// Bug 修复：首 tick 的 timeLeft == durationSeconds，若周期能整除（如 300 % 15 == 0）
+					// 会立刻给躲藏者发一次潜行奖励——但寻找者还没出动。
+					// 用 elapsed 代替 timeLeft 取模，并且 elapsed > 0 才发，杜绝零秒奖励。
+					int elapsed = durationSeconds - timeLeft;
+					if (survivalReward > 0 && elapsed > 0 && elapsed % survivalInterval == 0) {
 						for (UUID hiderId : arena.getHiders()) {
-							arena.addMatchScore(hiderId, 1);
+							arena.addMatchScore(hiderId, survivalReward);
 							Player hider = Bukkit.getPlayer(hiderId);
 							if (hider != null) {
-								hider.sendActionBar(Component.text("✔ 潜行存活奖励: 积分 +1", NamedTextColor.GREEN));
+								hider.sendActionBar(Component.text("✔ 潜行存活奖励: 积分 +" + survivalReward, NamedTextColor.GREEN));
 							}
 						}
 					}
 
-					if (timeLeft % 5 == 0) {
+					// 箭矢回补复用 elapsed，避免和潜行奖励一样的首秒触发问题
+					if (elapsed > 0 && elapsed % 5 == 0) {
 						for (UUID hiderId : arena.getHiders()) {
 							Player hider = Bukkit.getPlayer(hiderId);
 							if (hider != null) {
@@ -609,17 +621,18 @@ public class GameManager {
 		arena.setState(GameState.ENDING);
 
 		Set<UUID> winners = (winner == PlayerRole.SEEKER) ? arena.getSeekers() : arena.getHiders();
+		ScoringConfig scoring = arena.getTemplate().getScoring();
 		if (winner == PlayerRole.SEEKER) {
 			for (UUID u : arena.getSeekers()) {
 				if (arena.getOriginalSeekers().contains(u)) {
-					arena.addMatchScore(u, 20); // 初始母体寻找者：得全额 20 分
+					arena.addMatchScore(u, scoring.getSeekerWinOriginal()); // 初始母体寻找者
 				} else {
-					arena.addMatchScore(u, 5);  // 被抓后变节的感染者：只得 5 分助攻分
+					arena.addMatchScore(u, scoring.getSeekerWinInfected()); // 被抓后变节的感染者
 				}
 			}
 		} else {
 			for (UUID u : arena.getHiders()) {
-				arena.addMatchScore(u, 20); // 胜利的躲藏者：得全额 20 分
+				arena.addMatchScore(u, scoring.getHiderWin()); // 胜利的躲藏者
 			}
 		}
 

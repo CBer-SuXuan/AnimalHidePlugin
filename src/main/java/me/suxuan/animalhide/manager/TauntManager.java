@@ -4,6 +4,7 @@ import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
+import me.suxuan.animalhide.game.ScoringConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
@@ -32,6 +33,8 @@ public class TauntManager {
 	public void handleTaunt(Player player, Arena arena, Material tauntType) {
 		if (player.hasCooldown(tauntType)) return;
 
+		ScoringConfig scoring = arena.getTemplate().getScoring();
+
 		int cooldownSeconds = 0;
 		int scoreReward = 0;
 
@@ -40,17 +43,17 @@ public class TauntManager {
 			// 1. 安全嘲讽 (Safe Taunt) - CD 5秒
 			// ==============================
 			cooldownSeconds = 5;
-			scoreReward = 2;
+			scoreReward = scoring.getTauntSafe();
 			playAnimalSound(player);
 			player.getWorld().spawnParticle(Particle.NOTE, player.getLocation().add(0, 1.5, 0), 3, 0.5, 0.5, 0.5, 1);
-			player.sendMessage(Component.text("发动了 安全嘲讽！积分 +2", NamedTextColor.GREEN));
+			player.sendMessage(Component.text("发动了 安全嘲讽！积分 +" + scoreReward, NamedTextColor.GREEN));
 
 		} else if (tauntType == Material.GLOWSTONE_DUST) {
 			// ==============================
 			// 2. 冒险嘲讽 (Risky Taunt) - CD 15秒，拉便便
 			// ==============================
 			cooldownSeconds = 15;
-			scoreReward = 4;
+			scoreReward = scoring.getTauntRisky();
 
 			// 播放喧闹的声音 (随机选取)
 			Sound[] noisySounds = {Sound.ENTITY_VILLAGER_NO, Sound.BLOCK_ANVIL_LAND, Sound.ENTITY_DONKEY_ANGRY};
@@ -66,7 +69,7 @@ public class TauntManager {
 			itemEntity.setCustomName("§6" + player.getName() + " 的便便");
 			itemEntity.setCustomNameVisible(true);
 
-			player.sendMessage(Component.text("发动了 冒险嘲讽！积分 +4", NamedTextColor.YELLOW));
+			player.sendMessage(Component.text("发动了 冒险嘲讽！积分 +" + scoreReward, NamedTextColor.YELLOW));
 
 		} else if (tauntType == Material.FIREWORK_ROCKET) {
 			// ==============================
@@ -91,7 +94,7 @@ public class TauntManager {
 			}
 
 			cooldownSeconds = 15;
-			scoreReward = 7;
+			scoreReward = scoring.getTauntFirework();
 
 			Firework fw = (Firework) player.getWorld().spawnEntity(player.getLocation(), EntityType.FIREWORK_ROCKET);
 			FireworkMeta fwm = fw.getFireworkMeta();
@@ -99,14 +102,14 @@ public class TauntManager {
 			fwm.setPower(2); // 射得更高
 			fw.setFireworkMeta(fwm);
 
-			player.sendMessage(Component.text("发动了 烟花嘲讽！(剩余次数: " + remaining + ") 积分 +7", NamedTextColor.GOLD));
+			player.sendMessage(Component.text("发动了 烟花嘲讽！(剩余次数: " + remaining + ") 积分 +" + scoreReward, NamedTextColor.GOLD));
 
 		} else if (tauntType == Material.REDSTONE_TORCH) {
 			// ==============================
 			// 4. 危险嘲讽 (Dangerous Taunt) - CD 60秒
 			// ==============================
 			cooldownSeconds = 60;
-			scoreReward = 10;
+			scoreReward = scoring.getTauntDangerous();
 
 			// 给躲藏者加速，并禁止变身 10 秒
 			player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 1, false, false, false));
@@ -134,7 +137,7 @@ public class TauntManager {
 				}
 			}
 
-			player.sendMessage(Component.text("发动了 危险嘲讽！你的位置已被通报，且10秒内无法变换伪装！快跑！积分 +10", NamedTextColor.DARK_RED));
+			player.sendMessage(Component.text("发动了 危险嘲讽！你的位置已被通报，且10秒内无法变换伪装！快跑！积分 +" + scoreReward, NamedTextColor.DARK_RED));
 		}
 
 		if (cooldownSeconds > 0) {

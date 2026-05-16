@@ -38,3 +38,30 @@ allowed-monsters:
   - SKELETON
   - CREEPER
   - SPIDER
+
+# ============================================================
+# 积分规则（可在游戏内用 /hide score set <地图> <key> <value> 实时修改）
+# 任意一项缺省会使用插件默认值，可以只覆盖想自定义的项。
+# ------------------------------------------------------------
+# seeker-kill-hider       寻找者击杀躲藏者每次得分
+# seeker-win-original     寻找者胜利时，原始（开局就是）寻找者结算分
+# seeker-win-infected     寻找者胜利时，半路被抓变节的"感染者"结算分
+# hider-win               躲藏者全队胜利时每人结算分
+# hider-survival-reward   躲藏者每存活一个间隔得分
+# hider-survival-interval 躲藏者存活结算间隔（秒，必须 >= 1）
+# taunt-safe              安全嘲讽（粉色染料）得分
+# taunt-risky             冒险嘲讽（萤石粉）得分
+# taunt-firework          烟花嘲讽得分
+# taunt-dangerous         危险嘲讽（红石火把）得分
+# ============================================================
+scoring:
+  seeker-kill-hider: 10
+  seeker-win-original: 20
+  seeker-win-infected: 5
+  hider-win: 20
+  hider-survival-reward: 1
+  hider-survival-interval: 15
+  taunt-safe: 2
+  taunt-risky: 4
+  taunt-firework: 7
+  taunt-dangerous: 10

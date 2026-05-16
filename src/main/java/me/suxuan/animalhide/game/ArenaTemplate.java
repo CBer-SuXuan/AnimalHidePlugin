@@ -23,9 +23,12 @@ public class ArenaTemplate {
 	private final Location configSeekerSpawn;
 	private final List<SpawnPoint> configAiSpawns;
 
+	// 该地图独立的积分规则
+	private final ScoringConfig scoring;
+
 	public ArenaTemplate(String mapName, String templateName, int minPlayers, int maxPlayers,
 	                     Location configWaitingLobby, Location configHiderSpawn, Location configSeekerSpawn,
-	                     List<SpawnPoint> configAiSpawns, int aiAnimalCount) {
+	                     List<SpawnPoint> configAiSpawns, int aiAnimalCount, ScoringConfig scoring) {
 		this.mapName = mapName;
 		this.templateName = templateName;
 		this.minPlayers = minPlayers;
@@ -35,5 +38,6 @@ public class ArenaTemplate {
 		this.configSeekerSpawn = configSeekerSpawn;
 		this.configAiSpawns = configAiSpawns;
 		this.aiAnimalCount = aiAnimalCount;
+		this.scoring = scoring != null ? scoring : ScoringConfig.defaults();
 	}
 }
