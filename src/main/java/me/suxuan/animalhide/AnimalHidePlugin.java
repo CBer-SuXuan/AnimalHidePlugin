@@ -36,7 +36,9 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		instance = this;
 
 		// 初始化管理器
-		initManagers();
+		if (!initManagers()) {
+			return;
+		}
 
 		// 注册事件监听器
 		registerListeners();
@@ -50,7 +52,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		}
 	}
 
-	private void initManagers() {
+	private boolean initManagers() {
 
 		RegisteredServiceProvider<ArenaManager> rsp = getServer().getServicesManager().getRegistration(ArenaManager.class);
 		if (rsp != null) {
@@ -58,6 +60,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		} else {
 			getLogger().severe("无法找到 SlimeArenaAPI！");
 			getServer().getPluginManager().disablePlugin(this);
+			return false;
 		}
 
 		configManager = new ConfigManager(this);
@@ -69,6 +72,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		aiSpawnManager = new AISpawnManager(this);
 		tauntManager = new TauntManager(this);
 		explosiveSheepManager = new ExplosiveSheepManager(this);
+		return true;
 	}
 
 	private void registerListeners() {
@@ -78,17 +82,31 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		pm.registerEvents(new GameRuleListener(gameManager), this);
 		pm.registerEvents(new InteractionListener(gameManager), this);
 		pm.registerEvents(new ChatListener(gameManager), this);
+		pm.registerEvents(new GlobalProtectionListener(), this);
 	}
 
 	private void registerCommands() {
-		getCommand("hide").setExecutor(new GameCommand(gameManager));
+		if (getCommand("hide") == null) {
+			getLogger().severe("命令 hide 未在 plugin.yml 中注册！");
+			return;
+		}
+
+		GameCommand command = new GameCommand(gameManager);
+		getCommand("hide").setExecutor(command);
+		getCommand("hide").setTabCompleter(command);
 	}
 
 	@Override
 	public void onDisable() {
-		gameManager.emergencyCleanup();
-		databaseManager.close();
-		tutorialManager.clearTutorialNPCs();
+		if (gameManager != null) {
+			gameManager.emergencyCleanup();
+		}
+		if (databaseManager != null) {
+			databaseManager.close();
+		}
+		if (tutorialManager != null) {
+			tutorialManager.clearTutorialNPCs();
+		}
 	}
 
 }

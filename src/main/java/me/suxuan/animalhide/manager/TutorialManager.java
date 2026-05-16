@@ -117,7 +117,6 @@ public class TutorialManager {
 			Location loc = section.getLocation(key + ".location");
 			if (type != null && loc != null) {
 				Entity entity = createSpecificNPC(loc, type);
-				System.out.println(entity);
 				if (entity != null) tutorialEntities.add(entity);
 			}
 		}
@@ -133,6 +132,8 @@ public class TutorialManager {
 			}
 		}
 		tutorialEntities.clear();
+		plugin.getConfig().set("tutorial-npcs", null);
+		plugin.saveConfig();
 	}
 
 	/**

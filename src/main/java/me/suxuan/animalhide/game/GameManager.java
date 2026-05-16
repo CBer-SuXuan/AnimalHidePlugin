@@ -66,6 +66,10 @@ public class GameManager {
 			Location waiting = configManager.getDynamicLocation(config.getConfigurationSection("locations.waiting-lobby"));
 			Location hiderSpawn = configManager.getDynamicLocation(config.getConfigurationSection("locations.hider-spawn"));
 			Location seekerSpawn = configManager.getDynamicLocation(config.getConfigurationSection("locations.seeker-spawn"));
+			if (waiting == null || hiderSpawn == null || seekerSpawn == null) {
+				plugin.getComponentLogger().error("竞技场 {} 缺少必要坐标配置，已跳过加载。", name);
+				continue;
+			}
 
 			List<Location> aiSpawns = new ArrayList<>();
 			org.bukkit.configuration.ConfigurationSection spawnsSec = config.getConfigurationSection("locations.ai-spawns");
@@ -139,9 +143,11 @@ public class GameManager {
 				}
 			});
 		}).exceptionally(ex -> {
-			plugin.getComponentLogger().error("生成对局世界失败: {}", instanceName, ex);
-			player.sendMessage(Component.text("服务器资源调度失败，请稍后再试！", NamedTextColor.RED));
-			activeMatches.remove(newMatch);
+			Bukkit.getScheduler().runTask(plugin, () -> {
+				plugin.getComponentLogger().error("生成对局世界失败: {}", instanceName, ex);
+				player.sendMessage(Component.text("服务器资源调度失败，请稍后再试！", NamedTextColor.RED));
+				activeMatches.remove(newMatch);
+			});
 			return null;
 		});
 	}
@@ -251,6 +257,7 @@ public class GameManager {
 		double ratio = configManager.getArenaConfigs()
 				.get(arena.getArenaName())
 				.getDouble("settings.seeker-ratio", 0.2);
+		ratio = Math.clamp(ratio, 0.0, 1.0);
 		int seekerCount = (int) Math.max(1, Math.floor(total * ratio));
 
 		List<UUID> candidatesForSeeker = new ArrayList<>();
@@ -274,6 +281,7 @@ public class GameManager {
 		finalSeekerPool.addAll(candidatesForSeeker);
 		finalSeekerPool.addAll(noPreference);
 		finalSeekerPool.addAll(forcedHiders);
+		seekerCount = Math.min(seekerCount, finalSeekerPool.size());
 
 		int hideTime = configManager.getArenaConfigs()
 				.get(arena.getArenaName())
@@ -286,10 +294,10 @@ public class GameManager {
 
 			if (seeker != null) {
 				arena.getSeekers().add(seekerUUID);
+				arena.getOriginalSeekers().add(seekerUUID);
 				setupSeeker(seeker, arena, hideTimeTicks);
 			}
 		}
-		arena.getOriginalSeekers().addAll(finalSeekerPool);
 
 		String listKey = (arena.getArenaMode() == ArenaMode.ANIMAL) ? "allowed-animals" : "allowed-monsters";
 		List<String> allowedEntities = configManager.getArenaConfigs().get(arena.getArenaName()).getStringList(listKey);
@@ -663,11 +671,27 @@ public class GameManager {
 	 * 彻底销毁一个对局及其对应的 Slime 世界
 	 */
 	public void destroyArenaMatch(Arena match) {
+		// 1. 从活跃对局列表中移除，停止一切该房间的业务逻辑
 		activeMatches.remove(match);
 		World oldWorld = match.getCurrentWorld();
+
 		if (oldWorld != null) {
-			plugin.getComponentLogger().info("对局结束/玩家清空，正在销毁临时世界 {}...", oldWorld.getName());
-			slimeArenaManager.discardArenaAsync(oldWorld, mainLobby);
+			String worldName = oldWorld.getName();
+			plugin.getComponentLogger().info("对局结束，已交由 SlimeArenaAPI 处理临时世界 {} 的安全销毁...", worldName);
+
+			// 2. 直接一行代码调用 API！(API 内部会自动处理传送、延迟和 WG 清理)
+			slimeArenaManager.discardArenaAsync(oldWorld, mainLobby).thenRun(() -> {
+
+				// 这里是 Future 完成后的回调，当这行代码执行时，世界已经 100% 被扬了
+				plugin.getComponentLogger().info("✔ 躲猫猫对局 {} 的内存回收已彻底完成。", worldName);
+
+			}).exceptionally(ex -> {
+
+				// 捕捉并打印可能出现的极端报错
+				plugin.getComponentLogger().error("✘ 躲猫猫世界 {} 内存回收失败！", worldName, ex);
+				return null;
+
+			});
 		}
 	}
 
@@ -690,7 +714,7 @@ public class GameManager {
 	 * 当服务器关闭或者插件重载时，强制结束所有正在进行的游戏
 	 */
 	public void stop() {
-		for (Arena arena : activeMatches) {
+		for (Arena arena : new ArrayList<>(activeMatches)) {
 			endGame(arena, PlayerRole.SPECTATOR);
 		}
 	}
@@ -701,7 +725,7 @@ public class GameManager {
 	public void emergencyCleanup() {
 		Location mainLobby = configManager.getLocation(configManager.getMainConfig().getConfigurationSection("main-lobby"));
 
-		for (Arena arena : activeMatches) {
+		for (Arena arena : new ArrayList<>(activeMatches)) {
 			if (arena.getState() != GameState.WAITING) {
 				for (UUID uuid : arena.getPlayers()) {
 					Player player = org.bukkit.Bukkit.getPlayer(uuid);

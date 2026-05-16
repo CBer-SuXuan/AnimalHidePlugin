@@ -7,6 +7,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -162,7 +163,9 @@ public class GameRuleListener implements Listener {
 				return;
 			}
 		}
-		event.setCancelled(true);
+		if (isArenaWorld(event.getEntity().getWorld())) {
+			event.setCancelled(true);
+		}
 	}
 
 	/**
@@ -209,7 +212,20 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onTutorialChickenDrop(EntityDropItemEvent event) {
-		event.setCancelled(true);
+		String customName = event.getEntity().getCustomName();
+		boolean tutorialNpc = customName != null && customName.contains("嘲讽");
+		if (tutorialNpc || isArenaWorld(event.getEntity().getWorld())) {
+			event.setCancelled(true);
+		}
+	}
+
+	private boolean isArenaWorld(World world) {
+		for (Arena arena : gameManager.getActiveMatches()) {
+			if (arena.getCurrentWorld() != null && arena.getCurrentWorld().equals(world)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 }
