@@ -105,7 +105,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 			databaseManager.close();
 		}
 		if (tutorialManager != null) {
-			tutorialManager.clearTutorialNPCs();
+			tutorialManager.shutdown();
 		}
 	}
 
