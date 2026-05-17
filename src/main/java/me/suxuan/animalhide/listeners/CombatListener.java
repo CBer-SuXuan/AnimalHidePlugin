@@ -109,21 +109,25 @@ public class CombatListener implements Listener {
 				int hits = arena.getArrowHits().getOrDefault(attacker.getUniqueId(), 0) + 1;
 				arena.getArrowHits().put(attacker.getUniqueId(), hits);
 
-				if (hits > 15) {
-					attacker.sendActionBar(Component.text("命中寻找者！弓箭已达到满级", NamedTextColor.GREEN));
-				}
-
-				if (hits % 5 == 0) { // 每命中 5 次升级一次
+				final int maxHits = 15; // 5/10/15 三次升级后封顶击退 III，超过不再升级
+				if (hits <= maxHits && hits % 5 == 0) {
 					ItemStack bow = attacker.getInventory().getItem(1); // 假设弓在第2格
 					if (bow != null && bow.getType() == Material.BOW) {
 						int currentKb = bow.getEnchantmentLevel(Enchantment.KNOCKBACK);
-						bow.addUnsafeEnchantment(Enchantment.KNOCKBACK, currentKb + 1);
-
-						attacker.sendMessage(Component.text("精准射击！你的弓击退等级已升至 " + (currentKb + 1) + "！", NamedTextColor.GOLD));
-						attacker.playSound(attacker.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 2f);
+						// 双保险：即便 hits 因为并发等原因越界，等级也不会超过 3
+						int newKb = Math.min(3, currentKb + 1);
+						if (newKb > currentKb) {
+							bow.addUnsafeEnchantment(Enchantment.KNOCKBACK, newKb);
+							attacker.sendMessage(Component.text("精准射击！你的弓击退等级已升至 " + newKb + "！", NamedTextColor.GOLD));
+							attacker.playSound(attacker.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 2f);
+						}
 					}
-				} else {
+				} else if (hits < maxHits) {
 					attacker.sendActionBar(Component.text("命中寻找者！距离下次弓箭升级还需 " + (5 - (hits % 5)) + " 次", NamedTextColor.GREEN));
+					attacker.playSound(attacker.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+				} else {
+					// hits > 15：已满级，只回提示，不再动附魔
+					attacker.sendActionBar(Component.text("命中寻找者！弓箭已满级 (击退III)", NamedTextColor.GREEN));
 					attacker.playSound(attacker.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
 				}
 			} else {

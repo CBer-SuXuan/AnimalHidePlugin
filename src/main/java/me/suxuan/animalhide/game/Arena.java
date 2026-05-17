@@ -122,6 +122,8 @@ public class Arena {
 		player.teleportAsync(getWaitingLobby());
 		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + getMaxPlayers() + ")"));
 		gameManager.resetPlayerDataWithoutLobby(player, this);
+		// 进入对局后关闭碰撞，替代以前 ah_allies / ah_wait scoreboard team 的 COLLISION_RULE=NEVER
+		player.setCollidable(false);
 		giveLobbyItems(player);
 		gameManager.updatePlayerVisibility(player);
 		gameManager.checkAndStartCountdown(this);
@@ -132,6 +134,7 @@ public class Arena {
 		spectators.add(player.getUniqueId());
 
 		gameManager.resetPlayerDataWithoutLobby(player, this);
+		player.setCollidable(false);
 		player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 		player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false, false));
 

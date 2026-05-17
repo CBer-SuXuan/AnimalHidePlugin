@@ -8,7 +8,6 @@ import me.suxuan.animalhide.hooks.PAPIExpansion;
 import me.suxuan.animalhide.listeners.*;
 import me.suxuan.animalhide.manager.*;
 import me.suxuan.slimearena.api.ArenaManager;
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -46,10 +45,9 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		// 注册指令
 		registerCommands();
 
-		if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
-			new PAPIExpansion(gameManager).register();
-			getComponentLogger().info("成功挂载 PlaceholderAPI，已注册占位符！");
-		}
+		// PlaceholderAPI / TAB 已是 hard depend，启动顺序保证它们已加载，可以无条件注册
+		new PAPIExpansion(gameManager).register();
+		getComponentLogger().info("已注册 AnimalHide PlaceholderAPI 占位符（含关系占位符 %rel_animalhide_color%）");
 	}
 
 	private boolean initManagers() {

@@ -53,67 +53,19 @@ public class ScoreboardManager {
 	}
 
 	/**
-	 * 更新单个玩家的计分板
+	 * 更新单个玩家的计分板（仅负责右侧 sidebar 渲染）。
+	 *
+	 * <p>TAB 列表的染色 / 同队隔离 / 跨房间隐藏全部交给 TAB 插件 +
+	 * {@code %rel_animalhide_color%} 与 {@code %animalhide_tag%} 实现，
+	 * 这里不再维护 ah_allies / ah_enemies / ah_wait 这些 scoreboard team。
+	 * 玩家之间的无碰撞需求由 {@link org.bukkit.entity.Player#setCollidable(boolean)}
+	 * 在加入房间时统一处理。
 	 */
 	private void updateBoard(Player player, Arena arena) {
 		Scoreboard board = player.getScoreboard();
 		if (board == Bukkit.getScoreboardManager().getMainScoreboard()) {
 			board = Bukkit.getScoreboardManager().getNewScoreboard();
 			player.setScoreboard(board);
-		}
-
-		Team allies = board.getTeam("ah_allies");
-		if (arena.getState() == GameState.PLAYING) {
-			// 1. 创建盟友队伍 (绿色)
-			if (allies == null) {
-				allies = board.registerNewTeam("ah_allies");
-				allies.color(NamedTextColor.GREEN); // 设置名片和 Tab 颜色为绿
-				allies.setOption(org.bukkit.scoreboard.Team.Option.COLLISION_RULE, org.bukkit.scoreboard.Team.OptionStatus.NEVER);
-			}
-
-			// 2. 创建敌人队伍 (红色)
-			org.bukkit.scoreboard.Team enemies = board.getTeam("ah_enemies");
-			if (enemies == null) {
-				enemies = board.registerNewTeam("ah_enemies");
-				enemies.color(NamedTextColor.RED); // 设置名片和 Tab 颜色为红
-				enemies.setOption(org.bukkit.scoreboard.Team.Option.COLLISION_RULE, org.bukkit.scoreboard.Team.OptionStatus.NEVER);
-			}
-
-			boolean isPlayerSeeker = arena.getSeekers().contains(player.getUniqueId());
-
-			// 3. 遍历房间内所有人，根据“当前玩家的视角”把他们分到敌友队伍中
-			for (UUID targetId : arena.getPlayers()) {
-				Player target = Bukkit.getPlayer(targetId);
-				if (target == null) continue;
-
-				boolean isTargetSeeker = arena.getSeekers().contains(targetId);
-
-				// 如果阵营相同，就是盟友；否则就是敌人
-				if (isPlayerSeeker == isTargetSeeker) {
-					enemies.removeEntry(target.getName()); // 确保不在敌人队
-					if (!allies.hasEntry(target.getName())) allies.addEntry(target.getName());
-				} else {
-					allies.removeEntry(target.getName()); // 确保不在盟友队
-					if (!enemies.hasEntry(target.getName())) enemies.addEntry(target.getName());
-				}
-			}
-		} else {
-			Team enemies = board.getTeam("ah_enemies");
-			if (allies != null) for (String entry : allies.getEntries()) allies.removeEntry(entry);
-			if (enemies != null) for (String entry : enemies.getEntries()) enemies.removeEntry(entry);
-			// 等待阶段尚未分配阵营，统一设置为灰色无碰撞
-			Team waitTeam = board.getTeam("ah_wait");
-			if (waitTeam == null) {
-				waitTeam = board.registerNewTeam("ah_wait");
-				waitTeam.color(NamedTextColor.GRAY);
-				waitTeam.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
-			}
-			for (UUID targetId : arena.getPlayers()) {
-				Player target = Bukkit.getPlayer(targetId);
-				if (target != null && !waitTeam.hasEntry(target.getName())) {
-					waitTeam.addEntry(target.getName());
-				}
-			}
 		}
 
 		// 1. 构建显示的文本行

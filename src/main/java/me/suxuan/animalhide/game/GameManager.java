@@ -853,6 +853,7 @@ public class GameManager {
 						player.setHealth(20.0);
 						player.setFoodLevel(20);
 						player.setFireTicks(0);
+						player.setCollidable(true);
 						player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
 
 						if (mainLobby != null) {
@@ -907,6 +908,8 @@ public class GameManager {
 			player.setFoodLevel(20);
 			player.setFireTicks(0);
 			player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
+			// 回到大厅 / 退出对局后恢复正常碰撞
+			player.setCollidable(true);
 		}
 	}
 

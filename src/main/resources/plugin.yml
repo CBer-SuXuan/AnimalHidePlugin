@@ -5,8 +5,7 @@ main: me.suxuan.animalhide.AnimalHidePlugin
 api-version: '1.21.11'
 
 author: SuXuan_Dev
-depend: [ LibsDisguises, SlimeArenaAPI ]
-softdepend: [ PlaceholderAPI ]
+depend: [ LibsDisguises, SlimeArenaAPI, PlaceholderAPI, TAB ]
 
 load: POSTWORLD
 
