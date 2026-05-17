@@ -322,7 +322,8 @@ public class GameManager {
 		seeker.teleportAsync(arena.getSeekerSpawn());
 		seeker.sendMessage(Component.text("你是寻找者！找出所有的动物！", NamedTextColor.RED));
 
-		equipSeeker(seeker);
+		// 初始装备 = 1 级寻找者
+		equipSeeker(seeker, 0);
 
 		seeker.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0);
 		seeker.getAttribute(Attribute.SNEAKING_SPEED).setBaseValue(0);
@@ -331,23 +332,72 @@ public class GameManager {
 	}
 
 	/**
-	 * 为寻找者发放专属装备
+	 * 寻找者击杀升级系统的最高等级（含 L1 起始等级）。
 	 */
-	public void equipSeeker(Player seeker) {
+	public static final int MAX_SEEKER_LEVEL = 5;
+
+	/**
+	 * 把击杀数换算成寻找者等级（每杀 1 只升 1 级，封顶 {@link #MAX_SEEKER_LEVEL}）。
+	 */
+	public static int seekerLevelOf(int kills) {
+		return Math.min(MAX_SEEKER_LEVEL, kills + 1);
+	}
+
+	/**
+	 * 升到下一级所需的累计击杀数；已经满级返回 -1。
+	 */
+	public static int killsForNextLevel(int kills) {
+		int level = seekerLevelOf(kills);
+		if (level >= MAX_SEEKER_LEVEL) return -1;
+		return level; // L1→L2 需要 1 杀，L2→L3 需要 2 杀，依此类推（即等于当前 level）
+	}
+
+	/**
+	 * 为寻找者发放专属装备，并根据等级动态附魔与添加永久效果。
+	 *
+	 * <p>等级表（每杀 1 只动物升 1 级，最高 5 级）：
+	 * <ul>
+	 *   <li>L1 (0 杀): 石剑(无法破坏+击退I)、弓(无限+无法破坏)</li>
+	 *   <li>L2 (1 杀): + 锋利I</li>
+	 *   <li>L3 (2 杀): + 锋利II、弓+力量I、永久速度I</li>
+	 *   <li>L4 (3 杀): + 锋利III、弓+力量II</li>
+	 *   <li>L5 (4 杀, 满级): + 击退II、弓+力量III+冲击I、永久力量I</li>
+	 * </ul>
+	 */
+	public void equipSeeker(Player seeker, int kills) {
+		int level = seekerLevelOf(kills);
+
 		seeker.getInventory().clear();
 
-		ItemStack sword = new ItemStack(Material.WOODEN_SWORD);
+		// 石剑：永久无法破坏 + 至少击退 I，让动物有逃跑窗口
+		ItemStack sword = new ItemStack(Material.STONE_SWORD);
 		ItemMeta swordMeta = sword.getItemMeta();
 		swordMeta.setUnbreakable(true);
-		swordMeta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 3, true);
+		int knockback = (level >= 5) ? 2 : 1;
+		swordMeta.addEnchant(org.bukkit.enchantments.Enchantment.KNOCKBACK, knockback, true);
+		if (level >= 2) {
+			int sharpness = Math.min(3, level - 1); // L2:I  L3:II  L4:III  L5:III
+			swordMeta.addEnchant(org.bukkit.enchantments.Enchantment.SHARPNESS, sharpness, true);
+		}
+		swordMeta.displayName(Component.text("★ 寻找者佩剑 [Lv." + level + "] ★", NamedTextColor.RED)
+				.decoration(TextDecoration.ITALIC, false));
 		sword.setItemMeta(swordMeta);
 		seeker.getInventory().setItem(0, sword);
 
+		// 弓：永久无法破坏 + 无限箭矢，随等级附魔
 		ItemStack bow = new ItemStack(Material.BOW);
 		ItemMeta bowMeta = bow.getItemMeta();
 		bowMeta.setUnbreakable(true);
 		bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.INFINITY, 1, true);
-		bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 3, true);
+		if (level >= 3) {
+			int power = (level >= 5) ? 3 : (level - 2); // L3:I  L4:II  L5:III
+			bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.POWER, power, true);
+		}
+		if (level >= 5) {
+			bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.PUNCH, 1, true);
+		}
+		bowMeta.displayName(Component.text("★ 寻找者之弓 [Lv." + level + "] ★", NamedTextColor.RED)
+				.decoration(TextDecoration.ITALIC, false));
 		bow.setItemMeta(bowMeta);
 		seeker.getInventory().setItem(1, bow);
 
@@ -362,6 +412,41 @@ public class GameManager {
 		seeker.getInventory().setItem(2, sheepTrap);
 
 		seeker.getInventory().setItem(9, new ItemStack(Material.ARROW, 1));
+
+		// L3 起永久速度 I，L5 永久力量 I（用 Integer.MAX_VALUE 保持整局有效）
+		if (level >= 3) {
+			seeker.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false, false));
+		}
+		if (level >= 5) {
+			seeker.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, Integer.MAX_VALUE, 0, false, false, false));
+		}
+	}
+
+	/**
+	 * 寻找者击杀升级的统一入口：刷新装备 + 升级特效 + 满级提示。
+	 * 调用约定：必须在 {@link Arena#addMatchKill(UUID)} 之后调用，使用最新的 matchKills 数。
+	 */
+	public void applySeekerLevelUp(Player seeker, Arena arena) {
+		int kills = arena.getMatchKills(seeker.getUniqueId());
+		int newLevel = seekerLevelOf(kills);
+		int oldLevel = seekerLevelOf(kills - 1);
+
+		// 击杀后短暂回血，避免血量被磨光后无法继续抓
+		seeker.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 100, 1, false, false, false));
+
+		equipSeeker(seeker, kills);
+
+		if (newLevel > oldLevel) {
+			// 真正升级了：放升级动效
+			seeker.playSound(seeker.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.4f);
+			seeker.showTitle(Title.title(
+					Component.text("Lv." + oldLevel + " → Lv." + newLevel, NamedTextColor.GOLD),
+					newLevel >= MAX_SEEKER_LEVEL
+							? Component.text("⚔ 寻找者已满级！", NamedTextColor.RED)
+							: Component.text("⚔ 寻找者升级！装备已强化", NamedTextColor.YELLOW),
+					Title.Times.times(Duration.ofMillis(150), Duration.ofSeconds(2), Duration.ofMillis(300))
+			));
+		}
 	}
 
 	/**
@@ -384,14 +469,17 @@ public class GameManager {
 		arena.addMatchKill(seeker.getUniqueId()); // 记录 1 次击杀
 		seeker.sendMessage(Component.text("击杀躲藏者！积分 +" + killScore, NamedTextColor.GREEN));
 
+		// 击杀升级：刷新装备 + 升级动效（必须在 addMatchKill 之后）
+		applySeekerLevelUp(seeker, arena);
+
 		// 恢复状态并传送
 		victim.setHealth(20.0);
 		disguiseManager.undisguisePlayer(victim);
 		victim.teleportAsync(arena.getSeekerSpawn());
 		victim.sendMessage(Component.text("你已经被发现！现在你加入了寻找者阵营！", NamedTextColor.YELLOW));
 
-		// 给新变身的寻找者发装备
-		equipSeeker(victim);
+		// 给新变身的寻找者发 1 级装备（被感染者从头开始升级）
+		equipSeeker(victim, 0);
 
 		// 检查游戏是否结束
 		if (arena.getHiders().isEmpty()) {
@@ -673,7 +761,12 @@ public class GameManager {
 
 		for (UUID uuid : arena.getPlayers()) {
 			Player player = Bukkit.getPlayer(uuid);
+			if (player == null) continue;
 			resetPlayerData(player, arena);
+			// 必须在 updatePlayerVisibility 前清掉旧计分板：
+			// 否则 PLAYING 状态时挂载的 ah_allies/ah_enemies/ah_wait 队伍
+			// 会一直残留在玩家自己的 Scoreboard 上，导致返回大厅后 TAB 仍是红/绿染色。
+			AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
 			updatePlayerVisibility(player);
 		}
 

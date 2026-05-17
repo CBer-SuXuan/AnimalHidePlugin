@@ -107,7 +107,11 @@ public class Arena {
 		// 如果世界还没建好，先把玩家塞进名单，等建好了再传送 (由 GameManager 负责扫尾)
 		players.add(player.getUniqueId());
 
-		if (currentWorld != null && state == GameState.WAITING) {
+		// Bug 修复：
+		// 之前只在 WAITING 状态传送玩家，结果在 STARTING（倒计时阶段）加入的玩家
+		// 会被卡在原地、拿不到大厅物品，但 startGame 仍会把他当成正常房间成员分配阵营。
+		// STARTING 状态下世界已就绪，必须照常传送+发物品。
+		if (currentWorld != null && (state == GameState.WAITING || state == GameState.STARTING)) {
 			teleportAndInitPlayer(player);
 		} else {
 			player.sendMessage(Component.text("正在为您分配小游戏服务器资源，请稍候...", NamedTextColor.YELLOW));

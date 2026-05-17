@@ -82,6 +82,12 @@ public class CombatListener implements Listener {
 		boolean attackerIsHider = arena.getHiders().contains(attacker.getUniqueId());
 		boolean victimIsSeeker = arena.getSeekers().contains(victim.getUniqueId());
 
+		// 禁止任何形式的同阵营内斗（寻找者贴脸互打、躲藏者互射）
+		if ((attackerIsSeeker && victimIsSeeker) || (attackerIsHider && victimIsHider)) {
+			event.setCancelled(true);
+			return;
+		}
+
 		if (attackerIsSeeker && victimIsHider) {
 			if (event.getDamager() instanceof Projectile) {
 				event.setDamage(8);

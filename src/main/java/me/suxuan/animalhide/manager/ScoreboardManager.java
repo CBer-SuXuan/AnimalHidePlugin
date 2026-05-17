@@ -1,8 +1,6 @@
 package me.suxuan.animalhide.manager;
 
 import io.papermc.paper.scoreboard.numbers.NumberFormat;
-import me.libraryaddict.disguise.DisguiseAPI;
-import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.ArenaMode;
@@ -124,18 +122,20 @@ public class ScoreboardManager {
 		if (arena.getState() == GameState.PLAYING) {
 			boolean isHider = arena.getHiders().contains(player.getUniqueId());
 			boolean isSeeker = arena.getSeekers().contains(player.getUniqueId());
-			if (isHider) {
-				Disguise disguise = DisguiseAPI.getDisguise(player);
-				String type = disguise != null ? disguise.getType().name() : "UNKNOWN";
-				lines.addAll(getPixelArtWithChineseName(type));
-				lines.add("§d"); // 间距
-			}
 
 			String hiderSuffix = isHider ? " §7(你)" : "";
 			String seekerSuffix = isSeeker ? " §7(你)" : "";
 
 			lines.add("§f躲藏者: §a" + arena.getHiders().size() + hiderSuffix);
 			lines.add("§f寻找者: §c" + arena.getSeekers().size() + seekerSuffix);
+
+			// 个人成长信息：寻找者看击杀升级进度，躲藏者看弓箭升级进度
+			lines.add("§d");
+			if (isSeeker) {
+				appendSeekerLevelLines(lines, arena, player);
+			} else if (isHider) {
+				appendHiderBowLines(lines, arena, player);
+			}
 		} else if (arena.getState() == GameState.STARTING || arena.getState() == GameState.WAITING) {
 			lines.add("§a"); // 空行作分隔
 			lines.add("§f地图: §a" + arena.getArenaName());
@@ -249,58 +249,60 @@ public class ScoreboardManager {
 	}
 
 	/**
-	 * 获取像素头像及对应的中文名称
+	 * 拼一个简易的 ASCII 进度条：current / total 段，filledColor + emptyColor 着色。
+	 * 总段数固定 10，便于不同分母统一观感。
 	 */
-	private List<String> getPixelArtWithChineseName(String animalType) {
-		List<String> art = new ArrayList<>();
-		String chineseName;
+	private String makeProgressBar(int current, int total, String filledColor, String emptyColor) {
+		final int segments = 10;
+		if (total <= 0) total = 1;
+		// 用 Math.round(double)→long 再走 clamp(long,int,int)→int 的重载，避免类型不匹配
+		int filled = Math.clamp(Math.round((double) current * segments / total), 0, segments);
+		StringBuilder sb = new StringBuilder();
+		sb.append(filledColor);
+		for (int i = 0; i < filled; i++) sb.append('|');
+		sb.append(emptyColor);
+		for (int i = filled; i < segments; i++) sb.append('|');
+		return sb.toString();
+	}
 
-		switch (animalType.toUpperCase()) {
-			case "PIG":
-				art.add("  §d██████§1");
-				art.add("  §d█§0█§d██§0█§d█§2");
-				art.add("  §d██§f██§d██§3");
-				art.add("  §d█§0████§d█§4");
-				chineseName = "§d§l[ 猪 ]";
-				break;
-			case "COW":
-				art.add("  §f██§0██§f██§1");
-				art.add("  §f█§0█§f██§0█§f█§2");
-				art.add("  §f██§0██§f██§3");
-				art.add("  §f█§d████§f█§4");
-				chineseName = "§f§l[ 牛 ]";
-				break;
-			case "SHEEP":
-				art.add("  §f██████§1");
-				art.add("  §f█§0█§f██§0█§f█§2");
-				art.add("  §f██████§3");
-				art.add("  §f█§e████§f█§4");
-				chineseName = "§f§l[ 羊 ]";
-				break;
-			case "CHICKEN":
-				art.add("  §f██████§1");
-				art.add("  §f█§0█§f██§0█§f█§2");
-				art.add("  §f██§6██§f██§3");
-				art.add("  §f██§c██§f██§4");
-				chineseName = "§f§l[ 鸡 ]";
-				break;
-			case "WOLF":
-				art.add("  §8██████§1");
-				art.add("  §8█§f█§8██§f█§8█§2");
-				art.add("  §8██§f██§8██§3");
-				art.add("  §8█§0████§8█§4");
-				chineseName = "§7§l[ 狼 ]";
-				break;
-			default:
-				art.add("  §7██████§1");
-				art.add("  §7█§0█§7██§0█§7█§2");
-				art.add("  §7██████§3");
-				art.add("  §7██████§4");
-				chineseName = "§7§l[ 未知生物 ]";
-				break;
+	/**
+	 * 寻找者侧：等级 + 总体击杀升级进度（一条长进度条直接走到满级）。
+	 * 因为每级只需 +1 杀，单级进度条只有 0/1 没有视觉意义，
+	 * 所以这里改成展示「向满级冲刺」的累计进度。
+	 */
+	private void appendSeekerLevelLines(List<String> lines, Arena arena, Player player) {
+		int kills = arena.getMatchKills(player.getUniqueId());
+		int level = GameManager.seekerLevelOf(kills);
+		final int killsToMax = GameManager.MAX_SEEKER_LEVEL - 1; // 4 杀即满级
+		boolean maxed = level >= GameManager.MAX_SEEKER_LEVEL;
+
+		lines.add("§f寻找者等级: §c§lLv." + level + (maxed ? " §6(MAX)" : ""));
+		int capped = Math.min(kills, killsToMax);
+		lines.add(" " + makeProgressBar(capped, killsToMax, "§a", "§7"));
+		if (maxed) {
+			lines.add("§f击杀总数: §a" + kills);
+		} else {
+			lines.add("§f升级进度: §a" + capped + "§7/§e" + killsToMax + " §7击杀");
 		}
-		// 将中文名称居中对齐处理
-		art.add("    " + chineseName + "§5");
-		return art;
+	}
+
+	/**
+	 * 躲藏者侧：弓箭等级（每命中 5 次升 1 级）+ 整体升级进度。
+	 * 同样直接展示「冲向满级」的全局进度，避免每 5 命中重置看上去没动静。
+	 */
+	private void appendHiderBowLines(List<String> lines, Arena arena, Player player) {
+		int hits = arena.getArrowHits().getOrDefault(player.getUniqueId(), 0);
+		int level = hits / 5; // 5 命中升 Lv.1，10 命中升 Lv.2，15 命中后视为满级
+		final int hitsToMax = 15;
+		boolean maxed = hits >= hitsToMax;
+
+		lines.add("§f弓箭等级: §b§lLv." + level + (maxed ? " §6(MAX)" : ""));
+		int capped = Math.min(hits, hitsToMax);
+		lines.add(" " + makeProgressBar(capped, hitsToMax, "§b", "§7"));
+		if (maxed) {
+			lines.add("§f命中总数: §b" + hits);
+		} else {
+			lines.add("§f升级进度: §b" + capped + "§7/§e" + hitsToMax + " §7命中");
+		}
 	}
 }
