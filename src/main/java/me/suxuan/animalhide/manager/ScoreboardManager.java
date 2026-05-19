@@ -55,11 +55,14 @@ public class ScoreboardManager {
 	/**
 	 * 更新单个玩家的计分板（仅负责右侧 sidebar 渲染）。
 	 *
-	 * <p>TAB 列表的染色 / 同队隔离 / 跨房间隐藏全部交给 TAB 插件 +
-	 * {@code %rel_animalhide_color%} 与 {@code %animalhide_tag%} 实现，
-	 * 这里不再维护 ah_allies / ah_enemies / ah_wait 这些 scoreboard team。
-	 * 玩家之间的无碰撞需求由 {@link org.bukkit.entity.Player#setCollidable(boolean)}
-	 * 在加入房间时统一处理。
+	 * <p>TAB 列表的染色 / 同队隔离 / 跨房间隐藏 / 玩家无碰撞 全部交给 TAB 插件实现：
+	 * <ul>
+	 *   <li>染色：{@code %rel_animalhide_color%} + {@code %animalhide_tag%}</li>
+	 *   <li>跨房间隔离：TAB {@code per-world-playerlist}</li>
+	 *   <li>无碰撞：TAB {@code scoreboard-teams.enable-collision=false}</li>
+	 * </ul>
+	 * 这里不再维护 ah_allies / ah_enemies / ah_wait 这些 scoreboard team，
+	 * 也不要调用 {@code Player#setCollidable(false)}（会让箭矢直接穿过玩家）。
 	 */
 	private void updateBoard(Player player, Arena arena) {
 		Scoreboard board = player.getScoreboard();

@@ -51,13 +51,13 @@ public class InteractionListener implements Listener {
 		// 处理选择模式GUI
 		if (event.getInventory().getHolder() instanceof ModeMenuHolder) {
 			event.setCancelled(true);
-			ItemStack clicked = event.getCurrentItem();
-			if (clicked == null || arena == null) return;
-
-			ArenaMode votedMode = (clicked.getType() == Material.PIG_SPAWN_EGG) ? ArenaMode.ANIMAL : ArenaMode.MONSTER;
-
-			arena.getModeVotes().put(player.getUniqueId(), votedMode);
-			player.sendMessage(Component.text("✔ 投票成功！当前选择: " + votedMode.getDisplayName(), NamedTextColor.GREEN));
+//			ItemStack clicked = event.getCurrentItem();
+//			if (clicked == null || arena == null) return;
+//
+//			ArenaMode votedMode = (clicked.getType() == Material.PIG_SPAWN_EGG) ? ArenaMode.ANIMAL : ArenaMode.MONSTER;
+//
+//			arena.getModeVotes().put(player.getUniqueId(), votedMode);
+//			player.sendMessage(Component.text("✔ 投票成功！当前选择: " + votedMode.getDisplayName(), NamedTextColor.GREEN));
 
 			player.closeInventory();
 			return;

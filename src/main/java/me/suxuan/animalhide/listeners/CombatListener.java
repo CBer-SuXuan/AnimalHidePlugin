@@ -1,11 +1,13 @@
 package me.suxuan.animalhide.listeners;
 
 import com.destroystokyo.paper.event.entity.ProjectileCollideEvent;
+import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
@@ -13,12 +15,14 @@ import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.util.Vector;
 
 public class CombatListener implements Listener {
 
@@ -90,7 +94,6 @@ public class CombatListener implements Listener {
 
 		if (attackerIsSeeker && victimIsHider) {
 			if (event.getDamager() instanceof Projectile) {
-				event.setDamage(8);
 				attacker.sendActionBar(Component.text("命中躲藏者！", NamedTextColor.GREEN));
 			}
 			// 寻找者 攻击 躲藏者
@@ -99,22 +102,19 @@ public class CombatListener implements Listener {
 				handleHiderDeath(arena, victim, attacker);
 			}
 		} else if (attackerIsHider && victimIsSeeker) {
-			// 躲藏者 射中/攻击 寻找者
+			// 躲藏者 射中/近战 寻找者：低伤害 + 暴露位置，弓命中另计升级进度
+			event.setDamage(0.1);
+			victim.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 60, 0, false, false, false));
+
 			if (event.getDamager() instanceof Projectile) {
-				event.setDamage(0.1); // 仅触发击退，不造成致死伤害
-
-				// 让寻找者短暂发光，暴露其位置给别的躲藏者
-				victim.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 60, 0, false, false, false));
-
 				int hits = arena.getArrowHits().getOrDefault(attacker.getUniqueId(), 0) + 1;
 				arena.getArrowHits().put(attacker.getUniqueId(), hits);
 
-				final int maxHits = 15; // 5/10/15 三次升级后封顶击退 III，超过不再升级
+				final int maxHits = 15;
 				if (hits <= maxHits && hits % 5 == 0) {
-					ItemStack bow = attacker.getInventory().getItem(1); // 假设弓在第2格
+					ItemStack bow = attacker.getInventory().getItem(1);
 					if (bow != null && bow.getType() == Material.BOW) {
 						int currentKb = bow.getEnchantmentLevel(Enchantment.KNOCKBACK);
-						// 双保险：即便 hits 因为并发等原因越界，等级也不会超过 3
 						int newKb = Math.min(3, currentKb + 1);
 						if (newKb > currentKb) {
 							bow.addUnsafeEnchantment(Enchantment.KNOCKBACK, newKb);
@@ -126,15 +126,60 @@ public class CombatListener implements Listener {
 					attacker.sendActionBar(Component.text("命中寻找者！距离下次弓箭升级还需 " + (5 - (hits % 5)) + " 次", NamedTextColor.GREEN));
 					attacker.playSound(attacker.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
 				} else {
-					// hits > 15：已满级，只回提示，不再动附魔
 					attacker.sendActionBar(Component.text("命中寻找者！弓箭已满级 (击退III)", NamedTextColor.GREEN));
 					attacker.playSound(attacker.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
 				}
 			} else {
-				// 如果是近战敲击，直接取消伤害
-				event.setCancelled(true);
+				attacker.sendActionBar(Component.text("近战命中寻找者！", NamedTextColor.GREEN));
+				attacker.playSound(attacker.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
 			}
 		}
+	}
+
+	/**
+	 * LibsDisguises 对地面上的动物伪装常不发送击退速度包，导致躲藏者几乎不会被击退。
+	 * 在伤害结算后于下一 tick 手动补一次原版击退（仅寻找者近战命中躲藏者）。
+	 */
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+	public void onSeekerMeleeKnockback(EntityDamageByEntityEvent event) {
+		if (!(event.getEntity() instanceof Player victim)) return;
+		if (!(event.getDamager() instanceof Player attacker)) return;
+
+		Arena arena = gameManager.getArenaByPlayer(attacker);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getSeekers().contains(attacker.getUniqueId())) return;
+		if (!arena.getHiders().contains(victim.getUniqueId())) return;
+
+		int kbLevel = attacker.getInventory().getItemInMainHand().getEnchantmentLevel(Enchantment.KNOCKBACK);
+		if (kbLevel <= 0) return;
+
+		AnimalHidePlugin.getInstance().getServer().getScheduler().runTask(AnimalHidePlugin.getInstance(), () -> {
+			if (!victim.isOnline() || !attacker.isOnline()) return;
+			applyMeleeKnockback(attacker, victim, kbLevel, attacker.isSprinting());
+		});
+	}
+
+	private void applyMeleeKnockback(Player attacker, Player victim, int knockbackLevel, boolean sprinting) {
+		// Paper knockback(x,z) 表示击退「来源」方向，实体向相反方向被推
+		Location attackerLoc = attacker.getLocation();
+		Location victimLoc = victim.getLocation();
+		double sourceX = attackerLoc.getX() - victimLoc.getX();
+		double sourceZ = attackerLoc.getZ() - victimLoc.getZ();
+		double horizontalDist = Math.hypot(sourceX, sourceZ);
+
+		if (horizontalDist < 1e-6) {
+			Vector behindAttacker = attackerLoc.getDirection().multiply(-1);
+			sourceX = behindAttacker.getX();
+			sourceZ = behindAttacker.getZ();
+			horizontalDist = Math.hypot(sourceX, sourceZ);
+			if (horizontalDist < 1e-6) return;
+		}
+
+		double strength = 0.4 + knockbackLevel * 0.5;
+		if (sprinting) {
+			strength += 0.5;
+		}
+		victim.knockback(strength, sourceX / horizontalDist, sourceZ / horizontalDist);
 	}
 
 	/**

@@ -108,23 +108,8 @@ public class ExplosiveSheepManager {
 
 		for (Entity entity : nearby) {
 			if (arena.getAiAnimals().contains(entity)) {
-				EntityType type = entity.getType();
-				Location respawnLoc = entity.getLocation();
-
 				entity.remove();
 				arena.getAiAnimals().remove(entity);
-
-				new BukkitRunnable() {
-					@Override
-					public void run() {
-						if (arena.getState() == GameState.PLAYING) {
-							Entity newAi = respawnLoc.getWorld().spawnEntity(respawnLoc, type);
-							if (newAi instanceof LivingEntity living) living.setAI(false);
-							newAi.setSilent(true);
-							arena.getAiAnimals().add(newAi);
-						}
-					}
-				}.runTaskLater(plugin, 60L);
 			}
 
 			if (entity instanceof Player victim && arena.getHiders().contains(victim.getUniqueId())) {

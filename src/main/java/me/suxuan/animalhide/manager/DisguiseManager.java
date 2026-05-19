@@ -121,6 +121,8 @@ public class DisguiseManager {
 		disguise.setHideArmorFromSelf(false);
 		disguise.setHideHeldItemFromSelf(false);
 		disguise.setHearSelfDisguise(false);
+		// 动物伪装默认不向客户端同步击退速度，会导致躲藏者挨打不后退
+		disguise.setVelocitySent(true);
 
 		LivingWatcher watcher = disguise.getWatcher();
 		watcher.setGlowing(false);

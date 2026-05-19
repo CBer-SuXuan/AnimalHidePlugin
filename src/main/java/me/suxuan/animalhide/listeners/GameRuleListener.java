@@ -54,11 +54,37 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onFoodLevelChange(FoodLevelChangeEvent event) {
-		if (event.getEntity() instanceof Player player) {
-			if (gameManager.getArenaByPlayer(player) != null) {
-				event.setCancelled(true);
-				player.setFoodLevel(20);
+		if (!(event.getEntity() instanceof Player player)) return;
+
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null) return;
+
+		event.setCancelled(true);
+		player.setFoodLevel(20);
+		if (arena.getState() == GameState.PLAYING) {
+			if (arena.getHiders().contains(player.getUniqueId())) {
+				player.setSaturation(0f);
+			} else if (arena.getSeekers().contains(player.getUniqueId())) {
+				player.setSaturation(20f);
 			}
+		}
+	}
+
+	/**
+	 * 禁止躲藏者在局内通过饥饿/饱和度机制自然回血；寻找者不受影响。
+	 */
+	@EventHandler
+	public void onEntityRegainHealth(EntityRegainHealthEvent event) {
+		if (!(event.getEntity() instanceof Player player)) return;
+
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getHiders().contains(player.getUniqueId())) return;
+
+		EntityRegainHealthEvent.RegainReason reason = event.getRegainReason();
+		if (reason == EntityRegainHealthEvent.RegainReason.SATIATED
+				|| reason == EntityRegainHealthEvent.RegainReason.REGEN) {
+			event.setCancelled(true);
 		}
 	}
 

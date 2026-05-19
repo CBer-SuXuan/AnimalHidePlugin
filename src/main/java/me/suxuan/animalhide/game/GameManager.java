@@ -320,6 +320,8 @@ public class GameManager {
 
 	private void setupSeeker(Player seeker, Arena arena, int hideTimeTicks) {
 		seeker.teleportAsync(arena.getSeekerSpawn());
+		seeker.setFoodLevel(20);
+		seeker.setSaturation(20f);
 		seeker.sendMessage(Component.text("你是寻找者！找出所有的动物！", NamedTextColor.RED));
 
 		// 初始装备 = 1 级寻找者
@@ -474,6 +476,8 @@ public class GameManager {
 
 		// 恢复状态并传送
 		victim.setHealth(20.0);
+		victim.setFoodLevel(20);
+		victim.setSaturation(20f);
 		disguiseManager.undisguisePlayer(victim);
 		victim.teleportAsync(arena.getSeekerSpawn());
 		victim.sendMessage(Component.text("你已经被发现！现在你加入了寻找者阵营！", NamedTextColor.YELLOW));
@@ -489,6 +493,8 @@ public class GameManager {
 
 	private void setupHider(Player hider, Arena arena, List<String> allowedAnimals) {
 		hider.teleportAsync(arena.getHiderSpawn());
+		hider.setFoodLevel(20);
+		hider.setSaturation(0f);
 
 		List<Entity> aiList = arena.getAiAnimals();
 		if (!aiList.isEmpty()) {
@@ -853,7 +859,6 @@ public class GameManager {
 						player.setHealth(20.0);
 						player.setFoodLevel(20);
 						player.setFireTicks(0);
-						player.setCollidable(true);
 						player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
 
 						if (mainLobby != null) {
@@ -908,8 +913,6 @@ public class GameManager {
 			player.setFoodLevel(20);
 			player.setFireTicks(0);
 			player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
-			// 回到大厅 / 退出对局后恢复正常碰撞
-			player.setCollidable(true);
 		}
 	}
 

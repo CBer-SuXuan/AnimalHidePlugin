@@ -40,7 +40,8 @@ public class ModeMenu {
 						Component.text("更具挑战性的模式", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
 						Component.text("伪装成具有攻击性的怪物。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
 						Component.text(""),
-						Component.text("当前票数: ", NamedTextColor.WHITE).append(Component.text(monsterVotes, NamedTextColor.YELLOW)).decoration(TextDecoration.ITALIC, false)
+						Component.text("敬请期待", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)
+//						append(Component.text(monsterVotes, NamedTextColor.YELLOW))
 				)));
 
 		player.openInventory(inv);
