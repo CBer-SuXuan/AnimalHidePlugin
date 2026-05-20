@@ -1,6 +1,7 @@
 package me.suxuan.animalhide.manager;
 
 import me.libraryaddict.disguise.DisguiseAPI;
+import me.libraryaddict.disguise.disguisetypes.Disguise;
 import me.libraryaddict.disguise.disguisetypes.DisguiseType;
 import me.libraryaddict.disguise.disguisetypes.MobDisguise;
 import me.libraryaddict.disguise.disguisetypes.watchers.CatWatcher;
@@ -8,14 +9,18 @@ import me.libraryaddict.disguise.disguisetypes.watchers.LivingWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.SheepWatcher;
 import me.libraryaddict.disguise.disguisetypes.watchers.WolfWatcher;
 import me.suxuan.animalhide.AnimalHidePlugin;
+import me.suxuan.animalhide.game.Arena;
+import me.suxuan.animalhide.game.GameState;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
 
@@ -25,28 +30,84 @@ import java.util.List;
  */
 public class DisguiseManager {
 
+	private static final double DEFAULT_PLAYER_MOVE_SPEED = 0.1;
+	private static final float DEFAULT_PLAYER_WALK_SPEED = 0.2f;
+
 	private final AnimalHidePlugin plugin;
+	private BukkitTask chickenFlapTask;
 
 	public DisguiseManager(AnimalHidePlugin plugin) {
 		this.plugin = plugin;
+		startChickenFlapTask();
+	}
+
+	public void shutdown() {
+		if (chickenFlapTask != null) {
+			chickenFlapTask.cancel();
+		}
 	}
 
 	/**
 	 * 移除玩家的变身状态
-	 *
-	 * @param player 目标玩家
 	 */
 	public void undisguisePlayer(Player player) {
 		if (DisguiseAPI.isDisguised(player)) {
 			DisguiseAPI.undisguiseToAll(player);
-			player.setWalkSpeed(0.2f);
+			resetMovement(player);
 			player.sendMessage(Component.text("你的伪装已解除！", NamedTextColor.RED));
 		}
 	}
 
 	/**
-	 * 给躲藏者发放表明身份的物品
+	 * 按当前伪装类型重新应用移速（解除定点、变身后调用）
 	 */
+	public void refreshMovementForDisguise(Player player) {
+		if (DisguiseAPI.isDisguised(player)) {
+			applyDisguiseMovement(player);
+		} else {
+			resetMovement(player);
+		}
+	}
+
+	/** 伪装后统一使用玩家原版移速，不随动物种类变化 */
+	public void applyDisguiseMovement(Player player) {
+		resetMovement(player);
+	}
+
+	public void resetMovement(Player player) {
+		AttributeInstance moveAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
+		if (moveAttr != null) {
+			moveAttr.setBaseValue(DEFAULT_PLAYER_MOVE_SPEED);
+		}
+		player.setWalkSpeed(DEFAULT_PLAYER_WALK_SPEED);
+	}
+
+	/**
+	 * 伪装外观默认：水平朝向随玩家，俯仰锁定为 0（原版地面动物）
+	 */
+	public void applyDefaultDisguisePose(Player player) {
+		Disguise disguise = DisguiseAPI.getDisguise(player);
+		if (disguise == null) return;
+		LivingWatcher watcher = (LivingWatcher) disguise.getWatcher();
+		watcher.setYawLock(null);
+		watcher.setPitchLock(0f);
+		watcher.setAddEntityAnimations(true);
+		watcher.rebuildWatchableObjects();
+	}
+
+	/**
+	 * 定点伪装：锁定朝向并暂停实体动画（含鸡的扇翅）
+	 */
+	public void applyAnchoredDisguisePose(Player player, float yaw) {
+		Disguise disguise = DisguiseAPI.getDisguise(player);
+		if (disguise == null) return;
+		LivingWatcher watcher = (LivingWatcher) disguise.getWatcher();
+		watcher.setYawLock(yaw);
+		watcher.setPitchLock(0f);
+		watcher.setAddEntityAnimations(false);
+		watcher.rebuildWatchableObjects();
+	}
+
 	private void giveDisguiseItemUI(Player player, DisguiseType type) {
 		Material material = Material.matchMaterial(type.name() + "_SPAWN_EGG");
 		if (material == null) {
@@ -64,12 +125,10 @@ public class DisguiseManager {
 		ItemStack uiItem = new ItemStack(material);
 		ItemMeta meta = uiItem.getItemMeta();
 
-		// 设置无斜体、带颜色的显示名称
 		meta.displayName(Component.text("▶ 你的当前伪装: ", NamedTextColor.GRAY)
 				.append(localizedEntityName)
 				.decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
 
-		// 设置 Lore 描述
 		meta.lore(List.of(
 				Component.empty(),
 				Component.text("这就是你现在的样子！", NamedTextColor.YELLOW)
@@ -79,32 +138,7 @@ public class DisguiseManager {
 		));
 
 		uiItem.setItemMeta(meta);
-
 		player.getInventory().setItem(7, uiItem);
-	}
-
-	/**
-	 * 动态获取原版生物的真实移速并换算为玩家 WalkSpeed
-	 */
-	private float getVanillaSpeed(Player player, DisguiseType type) {
-		try {
-			EntityType entityType = EntityType.valueOf(type.name());
-
-			if (entityType.isAlive() && entityType.getEntityClass() != null) {
-				Entity dummy = player.getWorld().createEntity(player.getLocation(), entityType.getEntityClass());
-
-				if (dummy instanceof LivingEntity livingDummy) {
-					AttributeInstance speedAttr = livingDummy.getAttribute(Attribute.MOVEMENT_SPEED);
-					if (speedAttr != null) {
-						double baseSpeed = speedAttr.getBaseValue();
-						float scaledSpeed = (float) (baseSpeed * 0.7);
-						return Math.clamp(scaledSpeed, 0.12f, 0.35f);
-					}
-				}
-			}
-		} catch (IllegalArgumentException ignored) {
-		}
-		return 0.2f;
 	}
 
 	public void disguisePlayerAsEntity(Player player, Entity targetEntity) {
@@ -116,26 +150,20 @@ public class DisguiseManager {
 
 		MobDisguise disguise = new MobDisguise(type);
 
-		// 1. 基础配置 (与原来一致)
 		disguise.setViewSelfDisguise(true);
 		disguise.setHideArmorFromSelf(false);
 		disguise.setHideHeldItemFromSelf(false);
 		disguise.setHearSelfDisguise(false);
-		// 动物伪装默认不向客户端同步击退速度，会导致躲藏者挨打不后退
 		disguise.setVelocitySent(true);
 
 		LivingWatcher watcher = disguise.getWatcher();
 		watcher.setGlowing(false);
 		watcher.setCustomNameVisible(false);
-		watcher.setPitchLock(0f);
 
-		// 复制羊的颜色
 		switch (targetEntity) {
 			case Sheep sheepTarget when watcher instanceof SheepWatcher sheepWatcher ->
 					sheepWatcher.setColor(sheepTarget.getColor());
 
-
-			// 复制狼的变种 / 项圈颜色
 			case Wolf wolfTarget when watcher instanceof WolfWatcher wolfWatcher -> {
 				try {
 					wolfWatcher.setVariant(wolfTarget.getVariant());
@@ -146,7 +174,6 @@ public class DisguiseManager {
 				}
 			}
 
-			// 复制猫的品种
 			case Cat catTarget when watcher instanceof CatWatcher catWatcher -> {
 				try {
 					catWatcher.setType(catTarget.getCatType());
@@ -154,19 +181,38 @@ public class DisguiseManager {
 				}
 			}
 
-			// 复制猪的鞍
 			case Pig pigTarget when watcher instanceof me.libraryaddict.disguise.disguisetypes.watchers.PigWatcher pigWatcher ->
 					pigWatcher.setSaddled(pigTarget.hasSaddle());
 			default -> {
 			}
 		}
 
-		// 3. 应用变身
 		DisguiseAPI.disguiseToAll(player, disguise);
-//		giveDisguiseItemUI(player, type);
+		applyDefaultDisguisePose(player);
+		applyDisguiseMovement(player);
+	}
 
-		// 4. 调整移速
-		float actualSpeed = getVanillaSpeed(player, type);
-		player.setWalkSpeed(actualSpeed);
+	/**
+	 * LibsDisguises 对玩家伪装不会跑鸡的 tick，扇翅依赖实体动画包。
+	 * 定期 rebuild 并在非定点时保持动画开启，尽量贴近场景 AI 鸡。
+	 */
+	private void startChickenFlapTask() {
+		chickenFlapTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+			for (Arena arena : plugin.getGameManager().getActiveMatches()) {
+				if (arena.getState() != GameState.PLAYING) continue;
+				for (java.util.UUID hiderId : arena.getHiders()) {
+					Player hider = Bukkit.getPlayer(hiderId);
+					if (hider == null || !DisguiseAPI.isDisguised(hider)) continue;
+					if (arena.getDecoyAnchors().containsKey(hiderId)) continue;
+
+					Disguise disguise = DisguiseAPI.getDisguise(hider);
+					if (disguise == null || disguise.getType() != DisguiseType.CHICKEN) continue;
+
+					LivingWatcher watcher = (LivingWatcher) disguise.getWatcher();
+					watcher.setAddEntityAnimations(true);
+					watcher.rebuildWatchableObjects();
+				}
+			}
+		}, 4L, 4L);
 	}
 }

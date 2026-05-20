@@ -33,6 +33,9 @@ public class TauntManager {
 	public void handleTaunt(Player player, Arena arena, Material tauntType) {
 		if (player.hasCooldown(tauntType)) return;
 
+		DecoyManager decoyManager = AnimalHidePlugin.getInstance().getDecoyManager();
+		Location tauntLoc = decoyManager.getAnchorOrPlayerLocation(player, arena);
+
 		ScoringConfig scoring = arena.getTemplate().getScoring();
 
 		int cooldownSeconds = 0;
@@ -44,8 +47,8 @@ public class TauntManager {
 			// ==============================
 			cooldownSeconds = 5;
 			scoreReward = scoring.getTauntSafe();
-			playAnimalSound(player);
-			player.getWorld().spawnParticle(Particle.NOTE, player.getLocation().add(0, 1.5, 0), 3, 0.5, 0.5, 0.5, 1);
+			playAnimalSound(player, tauntLoc);
+			tauntLoc.getWorld().spawnParticle(Particle.NOTE, tauntLoc.clone().add(0, 1.5, 0), 3, 0.5, 0.5, 0.5, 1);
 			player.sendMessage(Component.text("发动了 安全嘲讽！积分 +" + scoreReward, NamedTextColor.GREEN));
 
 		} else if (tauntType == Material.GLOWSTONE_DUST) {
@@ -57,15 +60,15 @@ public class TauntManager {
 
 			// 播放喧闹的声音 (随机选取)
 			Sound[] noisySounds = {Sound.ENTITY_VILLAGER_NO, Sound.BLOCK_ANVIL_LAND, Sound.ENTITY_DONKEY_ANGRY};
-			player.getWorld().playSound(player.getLocation(), noisySounds[random.nextInt(noisySounds.length)], 1f, 1f);
-			player.getWorld().spawnParticle(Particle.NOTE, player.getLocation().add(0, 1.5, 0), 5, 0.5, 0.5, 0.5, 1);
+			tauntLoc.getWorld().playSound(tauntLoc, noisySounds[random.nextInt(noisySounds.length)], 1f, 1f);
+			tauntLoc.getWorld().spawnParticle(Particle.NOTE, tauntLoc.clone().add(0, 1.5, 0), 5, 0.5, 0.5, 0.5, 1);
 
 			// 掉落“便便” (可可豆)
 			ItemStack poop = new ItemStack(Material.COCOA_BEANS);
 			ItemMeta meta = poop.getItemMeta();
 			meta.displayName(Component.text(player.getName() + " 的便便", NamedTextColor.GOLD));
 			poop.setItemMeta(meta);
-			Item itemEntity = player.getWorld().dropItem(player.getLocation(), poop);
+			Item itemEntity = tauntLoc.getWorld().dropItem(tauntLoc, poop);
 			itemEntity.setCustomName("§6" + player.getName() + " 的便便");
 			itemEntity.setCustomNameVisible(true);
 
@@ -96,7 +99,7 @@ public class TauntManager {
 			cooldownSeconds = 15;
 			scoreReward = scoring.getTauntFirework();
 
-			Firework fw = (Firework) player.getWorld().spawnEntity(player.getLocation(), EntityType.FIREWORK_ROCKET);
+			Firework fw = (Firework) tauntLoc.getWorld().spawnEntity(tauntLoc, EntityType.FIREWORK_ROCKET);
 			FireworkMeta fwm = fw.getFireworkMeta();
 			fwm.addEffect(FireworkEffect.builder().withColor(Color.RED, Color.YELLOW).with(FireworkEffect.Type.BALL_LARGE).build());
 			fwm.setPower(2); // 射得更高
@@ -111,12 +114,16 @@ public class TauntManager {
 			cooldownSeconds = 60;
 			scoreReward = scoring.getTauntDangerous();
 
+			if (decoyManager.isAnchored(arena, player.getUniqueId())) {
+				decoyManager.deactivate(player, arena);
+			}
+
 			// 给躲藏者加速，并禁止变身 10 秒
 			player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 1, false, false, false));
 			arena.getDisguiseLockouts().put(player.getUniqueId(), System.currentTimeMillis() + 10000L);
 
-			// 获取模糊坐标
-			Location loc = player.getLocation();
+			// 获取模糊坐标（定点伪装时在锚点位置通报）
+			Location loc = tauntLoc;
 			int approxX = ((int) loc.getX() / 10) * 10;
 			int approxZ = ((int) loc.getZ() / 10) * 10;
 
@@ -156,18 +163,16 @@ public class TauntManager {
 	/**
 	 * 根据玩家当前的伪装播放原版动物声音
 	 */
-	private void playAnimalSound(Player player) {
+	private void playAnimalSound(Player player, Location at) {
 		Disguise disguise = DisguiseAPI.getDisguise(player);
 		if (disguise == null) return;
 
 		String typeName = disguise.getType().name();
 		try {
-			// 尝试映射如 ENTITY_PIG_AMBIENT
 			Sound sound = Sound.valueOf("ENTITY_" + typeName + "_AMBIENT");
-			player.getWorld().playSound(player.getLocation(), sound, 1f, 1f);
+			at.getWorld().playSound(at, sound, 1f, 1f);
 		} catch (IllegalArgumentException e) {
-			// 兜底声音
-			player.getWorld().playSound(player.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.1f, 2f);
+			at.getWorld().playSound(at, Sound.ENTITY_GENERIC_EXPLODE, 0.1f, 2f);
 		}
 	}
 }

@@ -464,6 +464,7 @@ public class GameManager {
 				.append(Component.text(" 找到了！", NamedTextColor.GRAY)));
 
 		arena.getHiders().remove(victim.getUniqueId());
+		plugin.getDecoyManager().clear(victim, arena);
 		arena.getSeekers().add(victim.getUniqueId());
 
 		int killScore = arena.getTemplate().getScoring().getSeekerKillHider();
@@ -518,7 +519,18 @@ public class GameManager {
 		wand.setItemMeta(wandMeta);
 		hider.getInventory().setItem(0, wand);
 
-		// 2. 击退弓 (第 2 格，索引 1)
+		// 2. 定点伪装 (第 3 格，索引 2)
+		ItemStack decoyItem = new ItemStack(Material.LEAD);
+		ItemMeta decoyMeta = decoyItem.getItemMeta();
+		decoyMeta.displayName(Component.text("▶ 定点伪装 (右键切换) ◀", NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.ITALIC, false));
+		decoyMeta.lore(List.of(
+				Component.text("锁定当前位置与朝向，你可转动视角", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("期间无法移动或射箭，可使用嘲讽", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+		));
+		decoyItem.setItemMeta(decoyMeta);
+		hider.getInventory().setItem(2, decoyItem);
+
+		// 3. 击退弓 (第 2 格，索引 1)
 		ItemStack bow = new ItemStack(Material.BOW);
 		ItemMeta bowMeta = bow.getItemMeta();
 		// 新增：给弓加上炫酷的名字，提示玩家可以通过射击升级
@@ -901,6 +913,7 @@ public class GameManager {
 			if (arena.getTimeBar() != null)
 				player.hideBossBar(arena.getTimeBar());
 
+			plugin.getDecoyManager().clear(player, arena);
 			disguiseManager.undisguisePlayer(player);
 
 			player.setAllowFlight(false);

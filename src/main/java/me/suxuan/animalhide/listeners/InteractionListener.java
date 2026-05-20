@@ -155,10 +155,11 @@ public class InteractionListener implements Listener {
 
 				if (allowed.contains(typeName)) {
 					try {
+						AnimalHidePlugin.getInstance().getDecoyManager().clear(player, arena);
 						AnimalHidePlugin.getInstance().getDisguiseManager().disguisePlayerAsEntity(player, clicked);
 
 						Component localizedName = Component.translatable(clicked.getType().translationKey(), NamedTextColor.YELLOW);
-						player.sendMessage(Component.text("✔ 已利用魔杖精准变身为: ", NamedTextColor.GREEN).append(localizedName));
+						player.sendMessage(Component.text("✔ 已利用魔杖变身为: ", NamedTextColor.GREEN).append(localizedName));
 						player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1f, 1f);
 					} catch (Exception ignored) {
 						player.sendMessage(Component.text("✘ 变身发生异常。", NamedTextColor.RED));
@@ -202,12 +203,28 @@ public class InteractionListener implements Listener {
 
 					Material type = item.getType();
 
+					if (type == Material.LEAD) {
+						event.setCancelled(true);
+						AnimalHidePlugin.getInstance().getDecoyManager().toggle(player, arena);
+						return;
+					}
+
+					if (type == Material.BOW) {
+						if (arena.isHidePhase() || arena.getDecoyAnchors().containsKey(player.getUniqueId())) {
+							event.setCancelled(true);
+							player.sendActionBar(Component.text(
+									arena.isHidePhase() ? "躲藏阶段无法使用弓箭！" : "定点伪装中无法使用弓箭！",
+									NamedTextColor.RED));
+							return;
+						}
+					}
+
 					if (type == Material.PINK_DYE || type == Material.GLOWSTONE_DUST ||
 							type == Material.FIREWORK_ROCKET || type == Material.REDSTONE_TORCH) {
 
 						event.setCancelled(true);
 
-						if (arena.getTimeBar() == null) {
+						if (arena.isHidePhase()) {
 							player.sendActionBar(Component.text("还没到寻找者出动的时间，现在不能使用嘲讽哦！", NamedTextColor.RED));
 							return;
 						}

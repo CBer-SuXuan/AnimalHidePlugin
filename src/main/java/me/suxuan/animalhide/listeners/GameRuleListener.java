@@ -89,6 +89,21 @@ public class GameRuleListener implements Listener {
 	}
 
 	/**
+	 * 场景 AI 死亡不掉落物品与经验
+	 */
+	@EventHandler
+	public void onAiAnimalDeath(EntityDeathEvent event) {
+		for (Arena arena : gameManager.getActiveMatches()) {
+			if (arena.getState() != GameState.PLAYING) continue;
+			if (arena.getAiAnimals().contains(event.getEntity())) {
+				event.getDrops().clear();
+				event.setDroppedExp(0);
+				return;
+			}
+		}
+	}
+
+	/**
 	 * 防止玩家在游戏中丢弃物品
 	 */
 	@EventHandler

@@ -50,6 +50,12 @@ public class Arena {
 	private final Map<UUID, Integer> arrowHits = new HashMap<>();
 	private final Map<UUID, Integer> fireworkUses = new HashMap<>();
 	private final Map<UUID, Long> disguiseLockouts = new HashMap<>();
+	/** 定点伪装锚点（世界坐标 + 锁定时的伪装朝向） */
+	private final Map<UUID, Location> decoyAnchors = new HashMap<>();
+	/** 进入定点前保存的 walkSpeed，用于恢复 */
+	private final Map<UUID, Float> decoySavedWalkSpeed = new HashMap<>();
+	/** 进入定点前保存的 MOVEMENT_SPEED 基础值 */
+	private final Map<UUID, Double> decoySavedMoveSpeed = new HashMap<>();
 
 	private final List<Entity> aiAnimals = new ArrayList<>();
 	private final Map<UUID, Integer> matchScores = new HashMap<>();
@@ -76,6 +82,13 @@ public class Arena {
 
 	public int getAiAnimalCount() {
 		return template.getAiAnimalCount();
+	}
+
+	/**
+	 * 是否处于开局躲藏阶段（寻找者尚未出动，BossBar 未创建）
+	 */
+	public boolean isHidePhase() {
+		return state == GameState.PLAYING && timeBar == null;
 	}
 
 	// === 动态坐标拼装 ===

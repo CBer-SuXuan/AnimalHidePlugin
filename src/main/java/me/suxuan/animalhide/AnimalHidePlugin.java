@@ -27,6 +27,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private AISpawnManager aiSpawnManager;
 	private TauntManager tauntManager;
 	private ExplosiveSheepManager explosiveSheepManager;
+	private DecoyManager decoyManager;
 
 	private ArenaManager arenaManager;
 
@@ -70,12 +71,14 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		aiSpawnManager = new AISpawnManager(this);
 		tauntManager = new TauntManager(this);
 		explosiveSheepManager = new ExplosiveSheepManager(this);
+		decoyManager = new DecoyManager(disguiseManager);
 		return true;
 	}
 
 	private void registerListeners() {
 		PluginManager pm = getServer().getPluginManager();
 		pm.registerEvents(new CombatListener(gameManager), this);
+		pm.registerEvents(new DecoyListener(gameManager, decoyManager), this);
 		pm.registerEvents(new ConnectionListener(gameManager), this);
 		pm.registerEvents(new GameRuleListener(gameManager), this);
 		pm.registerEvents(new InteractionListener(gameManager), this);
@@ -104,6 +107,9 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		}
 		if (tutorialManager != null) {
 			tutorialManager.shutdown();
+		}
+		if (disguiseManager != null) {
+			disguiseManager.shutdown();
 		}
 	}
 

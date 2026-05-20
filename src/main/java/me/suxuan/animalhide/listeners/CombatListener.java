@@ -62,12 +62,10 @@ public class CombatListener implements Listener {
 			return;
 		}
 
-		// 寻找者砍错 AI
+		// 场景 AI：寻找者误伤取消；躲藏者禁止攻击
 		if (arena.getAiAnimals().contains(event.getEntity())) {
+			event.setCancelled(true);
 			if (arena.getSeekers().contains(attacker.getUniqueId())) {
-				event.setDamage(0);
-				event.setCancelled(true);
-
 				attacker.playSound(attacker.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.5f);
 			}
 			return;
@@ -194,6 +192,18 @@ public class CombatListener implements Listener {
 		Arena arena = gameManager.getArenaByPlayer(player);
 		if (arena == null || arena.getState() != GameState.PLAYING) return;
 		if (!arena.getHiders().contains(player.getUniqueId())) return;
+
+		if (arena.isHidePhase()) {
+			event.setCancelled(true);
+			player.sendActionBar(Component.text("躲藏阶段无法使用弓箭！", NamedTextColor.RED));
+			return;
+		}
+
+		if (arena.getDecoyAnchors().containsKey(player.getUniqueId())) {
+			event.setCancelled(true);
+			player.sendActionBar(Component.text("定点伪装中无法使用弓箭！", NamedTextColor.RED));
+			return;
+		}
 
 		if (event.getProjectile() instanceof AbstractArrow arrow) {
 			arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
