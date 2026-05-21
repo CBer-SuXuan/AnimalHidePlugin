@@ -1,15 +1,17 @@
 package me.suxuan.animalhide.hooks;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
+import me.clip.placeholderapi.expansion.Relational;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
+import me.suxuan.animalhide.game.GameState;
 import me.suxuan.animalhide.manager.DatabaseManager;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class PAPIExpansion extends PlaceholderExpansion {
+public class PAPIExpansion extends PlaceholderExpansion implements Relational {
 
 	private final GameManager gameManager;
 
@@ -127,10 +129,51 @@ public class PAPIExpansion extends PlaceholderExpansion {
 					}
 					return "§8无";
 				}
+
+				// 用法: %animalhide_tag% -> 玩家头顶/TAB 的身份标签，建议放在 tabprefix / tagprefix 最前面
+				// 与 %rel_animalhide_color% 配合：tag 给出 "[寻] / [躲] / [旁]" 文字，color 给出敌我染色
+				case "tag" -> {
+					Arena arena = gameManager.getArenaByPlayer(player);
+					if (arena == null) return "";
+					if (arena.getSpectators().contains(player.getUniqueId())) return "§8[旁] ";
+					if (arena.getState() != GameState.PLAYING) return "§7[等] ";
+					if (arena.getSeekers().contains(player.getUniqueId())) return "§c[寻] ";
+					if (arena.getHiders().contains(player.getUniqueId())) return "§a[躲] ";
+					return "";
+				}
 			}
 		}
 
 		// 返回 null 表示未知的占位符，PAPI 会原样输出
 		return null;
+	}
+
+	/**
+	 * 关系占位符：%rel_animalhide_color% —— TAB 名字染色专用。
+	 *
+	 * <p>染色完全按「被看者（{@code two}）的身份」决定，不再做敌我相对染色，
+	 * 这样 {@code %animalhide_tag%}（按角色固定红/绿）和名字颜色才能保持一致。
+	 * <ul>
+	 *   <li>旁观者 → §8 暗灰</li>
+	 *   <li>寻找者 → §c 红（与 [寻] 标签一致）</li>
+	 *   <li>躲藏者 → §a 绿（与 [躲] 标签一致）</li>
+	 *   <li>等待 / 大厅 / 未游戏 → §7 灰</li>
+	 * </ul>
+	 *
+	 * <p>这里仍然实现为关系占位符（保留 {@code %rel_} 前缀）只是为了不打扰你 TAB 现有的 groups.yml 配置，
+	 * 实际逻辑只用到 {@code two}（被看者）。
+	 */
+	@Override
+	public String onPlaceholderRequest(Player one, Player two, String identifier) {
+		if (two == null) return "§7";
+		if (!"color".equals(identifier)) return null;
+
+		Arena arena = gameManager.getArenaByPlayer(two);
+		if (arena == null) return "§7";
+		if (arena.getSpectators().contains(two.getUniqueId())) return "§8";
+		if (arena.getState() != GameState.PLAYING) return "§7";
+		if (arena.getSeekers().contains(two.getUniqueId())) return "§c";
+		if (arena.getHiders().contains(two.getUniqueId())) return "§a";
+		return "§7";
 	}
 }

@@ -3,7 +3,12 @@ package me.suxuan.animalhide.listeners;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -49,10 +54,51 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onFoodLevelChange(FoodLevelChangeEvent event) {
-		if (event.getEntity() instanceof Player player) {
-			if (gameManager.getArenaByPlayer(player) != null) {
-				event.setCancelled(true);
-				player.setFoodLevel(20);
+		if (!(event.getEntity() instanceof Player player)) return;
+
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null) return;
+
+		event.setCancelled(true);
+		player.setFoodLevel(20);
+		if (arena.getState() == GameState.PLAYING) {
+			if (arena.getHiders().contains(player.getUniqueId())) {
+				player.setSaturation(0f);
+			} else if (arena.getSeekers().contains(player.getUniqueId())) {
+				player.setSaturation(20f);
+			}
+		}
+	}
+
+	/**
+	 * 禁止躲藏者在局内通过饥饿/饱和度机制自然回血；寻找者不受影响。
+	 */
+	@EventHandler
+	public void onEntityRegainHealth(EntityRegainHealthEvent event) {
+		if (!(event.getEntity() instanceof Player player)) return;
+
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getHiders().contains(player.getUniqueId())) return;
+
+		EntityRegainHealthEvent.RegainReason reason = event.getRegainReason();
+		if (reason == EntityRegainHealthEvent.RegainReason.SATIATED
+				|| reason == EntityRegainHealthEvent.RegainReason.REGEN) {
+			event.setCancelled(true);
+		}
+	}
+
+	/**
+	 * 场景 AI 死亡不掉落物品与经验
+	 */
+	@EventHandler
+	public void onAiAnimalDeath(EntityDeathEvent event) {
+		for (Arena arena : gameManager.getActiveMatches()) {
+			if (arena.getState() != GameState.PLAYING) continue;
+			if (arena.getAiAnimals().contains(event.getEntity())) {
+				event.getDrops().clear();
+				event.setDroppedExp(0);
+				return;
 			}
 		}
 	}
@@ -97,13 +143,27 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onEntityPickupItem(EntityPickupItemEvent event) {
-		// 判断拾取物品的实体是否为玩家
 		if (event.getEntity() instanceof Player player) {
 			Arena arena = gameManager.getArenaByPlayer(player);
 
-			// 如果玩家在游戏中，直接取消拾取
 			if (arena != null && arena.getState() == GameState.PLAYING) {
+				// 拦截默认的物品进入背包动作
 				event.setCancelled(true);
+
+				// 检查是不是寻找者，且捡起的是不是便便 (可可豆)
+				Item item = event.getItem();
+				if (item.getItemStack().getType() == Material.COCOA_BEANS) {
+					if (arena.getSeekers().contains(player.getUniqueId())) {
+						// 寻找者捡到了便便！
+						arena.addMatchScore(player.getUniqueId(), 5);
+						player.sendMessage(Component.text("你发现了便便！来源: ", NamedTextColor.GREEN)
+								.append(Component.text(item.getName(), NamedTextColor.YELLOW))
+								.append(Component.text(" (积分 +5)", NamedTextColor.GRAY)));
+
+						player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ITEM_PICKUP, 1f, 1f);
+						item.remove();
+					}
+				}
 			}
 		}
 	}
@@ -123,7 +183,7 @@ public class GameRuleListener implements Listener {
 		}
 
 		// 如果是 AI 动物之间的互相锁定 (如狼锁定羊)，通过所在世界来判断并取消
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			if (arena.getState() == GameState.PLAYING) {
 				// 如果这个发生寻敌事件的实体，处在正在游戏的地图世界中，就取消它的寻敌行为
 				if (arena.getHiderSpawn() != null && event.getEntity().getWorld().equals(arena.getHiderSpawn().getWorld())) {
@@ -144,7 +204,9 @@ public class GameRuleListener implements Listener {
 				return;
 			}
 		}
-		event.setCancelled(true);
+		if (isArenaWorld(event.getEntity().getWorld())) {
+			event.setCancelled(true);
+		}
 	}
 
 	/**
@@ -152,7 +214,7 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onEntityTeleport(EntityTeleportEvent event) {
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
 				event.setCancelled(true);
 				return;
@@ -165,7 +227,7 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onEntityCombust(EntityCombustEvent event) {
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
 				event.setCancelled(true);
 				return;
@@ -178,7 +240,7 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onExplosionPrime(ExplosionPrimeEvent event) {
-		for (Arena arena : gameManager.getArenas().values()) {
+		for (Arena arena : gameManager.getActiveMatches()) {
 			if (arena.getState() == GameState.PLAYING && arena.getAiAnimals().contains(event.getEntity())) {
 				event.setCancelled(true);
 				return;
@@ -191,6 +253,20 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onTutorialChickenDrop(EntityDropItemEvent event) {
-		event.setCancelled(true);
+		String customName = event.getEntity().getCustomName();
+		boolean tutorialNpc = customName != null && customName.contains("嘲讽");
+		if (tutorialNpc || isArenaWorld(event.getEntity().getWorld())) {
+			event.setCancelled(true);
+		}
 	}
+
+	private boolean isArenaWorld(World world) {
+		for (Arena arena : gameManager.getActiveMatches()) {
+			if (arena.getCurrentWorld() != null && arena.getCurrentWorld().equals(world)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 }

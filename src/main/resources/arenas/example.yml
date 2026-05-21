@@ -1,22 +1,36 @@
-name: "示例地图"
+name: "农场躲猫猫"
+template-name: "farm"
 
 # 坐标点（坐标点必须有world,x,y,z，yaw和pitch可选）
 locations:
-  waiting-lobby: { world: "farm", x: 8.5, y: -45, z: 8.5, yaw: 0.0, pitch: 90.0 } # 游戏开始前的等待室
-  hider-spawn: { world: "farm", x: 11.5, y: -60, z: 11.5, yaw: 135.0, pitch: 10.0 } # 躲藏者出生点
-  seeker-spawn: { world: "farm", x: 5.5, y: -60, z: 5.5, yaw: -45, pitch: 10.0 } # 寻找者出生点
-  # 地图的两个对角线坐标，用于划定生成 AI 动物的区域
-  pos1: { world: "farm", x: 16, y: -60, z: 16 }
-  pos2: { world: "farm", x: 0, y: -60, z: 0 }
+  waiting-lobby: { x: -20.5, y: -50, z: -25.5, yaw: 0.0, pitch: 2.0 } # 游戏开始前的等待室
+  hider-spawn: { x: -5.5, y: -51, z: 19.5, yaw: 135.0, pitch: 10.0 } # 躲藏者出生点
+  seeker-spawn: { x: -15.5, y: -50, z: -16.5, yaw: 0, pitch: 10.0 } # 寻找者出生点
+  # 隔离墙区域（模板坐标）：躲藏阶段不改动；寻找者出动时将该长方体范围内方块全部变为空气
+  # min / max 为对角点（整数方块坐标，两端均包含）
+  phase-wall:
+    min: { x: -15, y: -51, z: -2 }
+    max: { x: -10, y: -49, z: 3 }
+  # AI 生成点（每个点位以预设半径生成动物群落）
+  # 可选字段：
+  #   types  - 该点位允许生成的种类（数组）。不填则回退到下方 allowed-animals / allowed-monsters
+  #   weight - 抽签权重（数字，默认 1.0）。权重越大被选中作为生成中心的概率越大
+  ai-spawns:
+    point1: { x: 10, y: -60, z: 10 }                          # 不限种类，权重 1.0
+    pigpen: { x: 20, y: -60, z: 5, types: [PIG], weight: 3 }  # 只生成猪，权重 3.0
+    coop:   { x: 0, y: -60, z: 15, types: [CHICKEN] }         # 只生成鸡
 
 # 玩法参数
 settings:
   min-players: 2 # 最少玩家
   max-players: 12 # 最多玩家
+  countdown-seconds: 120 # 达到最少人数后的等待倒计时（秒）
+  fast-countdown-seconds: 20 # 人数达到 fast-start-percent 后的快速倒计时（秒）
+  fast-start-percent: 0.8 # 达到最大人数的该比例时进入快速倒计时（0-1，如 0.8 表示 12 人房需 >= 10 人）
   seeker-ratio: 0.2 # 寻找者比例（0-1之间）
   preparation-time: 5 # 躲藏时间（秒）
-  game-duration: 120 # 游戏时长（秒）
-  ai-animal-count: 30 # AI动物数量
+  game-duration: 300 # 游戏时长（秒）
+  ai-animal-count: 100 # AI动物数量
 
 # 允许变身的动物列表
 allowed-animals:
@@ -24,6 +38,7 @@ allowed-animals:
   - COW
   - SHEEP
   - CHICKEN
+  - PANDA
   - WOLF
 
 allowed-monsters:
@@ -31,3 +46,30 @@ allowed-monsters:
   - SKELETON
   - CREEPER
   - SPIDER
+
+# ============================================================
+# 积分规则（可在游戏内用 /hide score set <地图> <key> <value> 实时修改）
+# 任意一项缺省会使用插件默认值，可以只覆盖想自定义的项。
+# ------------------------------------------------------------
+# seeker-kill-hider       寻找者击杀躲藏者每次得分
+# seeker-win-original     寻找者胜利时，原始（开局就是）寻找者结算分
+# seeker-win-infected     寻找者胜利时，半路被抓变节的"感染者"结算分
+# hider-win               躲藏者全队胜利时每人结算分
+# hider-survival-reward   躲藏者每存活一个间隔得分
+# hider-survival-interval 躲藏者存活结算间隔（秒，必须 >= 1）
+# taunt-safe              安全嘲讽（粉色染料）得分
+# taunt-risky             冒险嘲讽（萤石粉）得分
+# taunt-firework          烟花嘲讽得分
+# taunt-dangerous         危险嘲讽（红石火把）得分
+# ============================================================
+scoring:
+  seeker-kill-hider: 10
+  seeker-win-original: 20
+  seeker-win-infected: 5
+  hider-win: 20
+  hider-survival-reward: 1
+  hider-survival-interval: 15
+  taunt-safe: 2
+  taunt-risky: 4
+  taunt-firework: 7
+  taunt-dangerous: 10

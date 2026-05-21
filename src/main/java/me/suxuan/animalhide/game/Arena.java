@@ -10,115 +10,169 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
 /**
- * 代表一个独立进行的游戏对局
+ * 动态对局实例 (Match)
  */
-
 @Getter
 @Setter
 public class Arena {
 
 	private final GameManager gameManager;
-	private final String arenaName;
+	private final ArenaTemplate template;
+
+	private String instanceName;
+	private World currentWorld;
+
 	private GameState state;
 	private BossBar timeBar;
 	private int timeLeft = 0;
-	private ArenaMode arenaMode = ArenaMode.ANIMAL;  // 默认生物模式
-	private final Map<UUID, ArenaMode> modeVotes = new HashMap<>();  // 记录玩家模式投票
-	private final Map<UUID, PlayerRole> rolePreferences = new HashMap<>();  // 记录玩家身份偏好
+	/**
+	 * 大厅 STARTING 阶段的倒计时任务
+	 */
+	private BukkitTask lobbyCountdownTask;
+	/**
+	 * 当前是否处于「人满加速」短倒计时
+	 */
+	private boolean lobbyFastCountdown;
+	private ArenaMode arenaMode = ArenaMode.ANIMAL;
 
-	// 配置参数
-	private final int minPlayers;
-	private final int maxPlayers;
-	private final Location waitingLobby;
-	private final Location hiderSpawn;
-	private final Location seekerSpawn;
+	private final Map<UUID, ArenaMode> modeVotes = new HashMap<>();
+	private final Map<UUID, PlayerRole> rolePreferences = new HashMap<>();
 
-	// 房间内的玩家列表
 	private final Set<UUID> players = new HashSet<>();
 	private final Set<UUID> hiders = new HashSet<>();
 	private final Set<UUID> seekers = new HashSet<>();
 	private final Set<UUID> spectators = new HashSet<>();
 	private final Set<UUID> originalSeekers = new HashSet<>();
 
-	private final Location pos1;
-	private final Location pos2;
-	private final int aiAnimalCount;
+	private final Map<UUID, Integer> arrowHits = new HashMap<>();
+	private final Map<UUID, Integer> fireworkUses = new HashMap<>();
+	private final Map<UUID, Long> disguiseLockouts = new HashMap<>();
+	/**
+	 * 定点伪装锚点（世界坐标 + 锁定时的伪装朝向）
+	 */
+	private final Map<UUID, Location> decoyAnchors = new HashMap<>();
+	/**
+	 * 进入定点前保存的 walkSpeed，用于恢复
+	 */
+	private final Map<UUID, Float> decoySavedWalkSpeed = new HashMap<>();
+	/**
+	 * 进入定点前保存的 MOVEMENT_SPEED 基础值
+	 */
+	private final Map<UUID, Double> decoySavedMoveSpeed = new HashMap<>();
 
 	private final List<Entity> aiAnimals = new ArrayList<>();
-
 	private final Map<UUID, Integer> matchScores = new HashMap<>();
 	private final Map<UUID, Integer> matchKills = new HashMap<>();
 
-	public Arena(GameManager gameManager, String arenaName, int minPlayers, int maxPlayers, Location waitingLobby,
-	             Location hiderSpawn, Location seekerSpawn, Location pos1, Location pos2, int aiAnimalCount) {
+	public Arena(GameManager gameManager, ArenaTemplate template, String instanceName) {
 		this.gameManager = gameManager;
-		this.arenaName = arenaName;
-		this.minPlayers = minPlayers;
-		this.maxPlayers = maxPlayers;
-		this.waitingLobby = waitingLobby;
-		this.hiderSpawn = hiderSpawn;
-		this.seekerSpawn = seekerSpawn;
-		this.state = GameState.WAITING;
-		this.pos1 = pos1;
-		this.pos2 = pos2;
-		this.aiAnimalCount = aiAnimalCount;
+		this.template = template;
+		this.instanceName = instanceName;
+		this.state = GameState.ENDING;
+	}
+
+	public String getArenaName() {
+		return template.getMapName();
+	}
+
+	public int getMinPlayers() {
+		return template.getMinPlayers();
+	}
+
+	public int getMaxPlayers() {
+		return template.getMaxPlayers();
+	}
+
+	public int getAiAnimalCount() {
+		return template.getAiAnimalCount();
 	}
 
 	/**
-	 * 玩家加入房间的逻辑处理
+	 * 是否处于开局躲藏阶段（寻找者尚未出动，BossBar 未创建）
 	 */
+	public boolean isHidePhase() {
+		return state == GameState.PLAYING && timeBar == null;
+	}
+
+	// === 动态坐标拼装 ===
+	private Location translate(Location configLoc) {
+		if (configLoc == null || currentWorld == null) return null;
+		return new Location(currentWorld, configLoc.getX(), configLoc.getY(), configLoc.getZ(), configLoc.getYaw(), configLoc.getPitch());
+	}
+
+	public Location getWaitingLobby() {
+		return translate(template.getConfigWaitingLobby());
+	}
+
+	public Location getHiderSpawn() {
+		return translate(template.getConfigHiderSpawn());
+	}
+
+	public Location getSeekerSpawn() {
+		return translate(template.getConfigSeekerSpawn());
+	}
+
+	public List<SpawnPoint> getAiSpawns() {
+		if (template.getConfigAiSpawns() == null) return new ArrayList<>();
+		return template.getConfigAiSpawns().stream()
+				.map(sp -> sp.withLocation(translate(sp.getLocation())))
+				.toList();
+	}
+
+	/**
+	 * 寻找阶段：将配置的 {@code phase-wall} 区域全部清空为空气。躲藏阶段不修改方块。
+	 */
+	public void openPhaseDoors() {
+		BlockRegion region = template.getConfigPhaseWall();
+		if (region == null || region.isEmpty() || currentWorld == null) return;
+		region.fillAir(currentWorld);
+	}
+
 	public void addPlayer(Player player) {
-		if (state != GameState.WAITING && state != GameState.STARTING) {
-			player.sendMessage(Component.text("该房间正在游戏中，无法加入！"));
-			return;
-		}
-		if (players.size() >= maxPlayers) {
-			player.sendMessage(Component.text("房间已满！"));
-			return;
-		}
-
+		// 如果世界还没建好，先把玩家塞进名单，等建好了再传送 (由 GameManager 负责扫尾)
 		players.add(player.getUniqueId());
-		// 传送至等待大厅
-		if (waitingLobby != null) {
-			player.teleportAsync(waitingLobby);
-		}
 
-		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + maxPlayers + ")"));
+		// Bug 修复：
+		// 之前只在 WAITING 状态传送玩家，结果在 STARTING（倒计时阶段）加入的玩家
+		// 会被卡在原地、拿不到大厅物品，但 startGame 仍会把他当成正常房间成员分配阵营。
+		// STARTING 状态下世界已就绪，必须照常传送+发物品。
+		if (currentWorld != null && (state == GameState.WAITING || state == GameState.STARTING)) {
+			teleportAndInitPlayer(player);
+		} else {
+			player.sendMessage(Component.text("正在为您分配小游戏服务器资源，请稍候...", NamedTextColor.YELLOW));
+		}
+	}
+
+	public void teleportAndInitPlayer(Player player) {
+		player.teleportAsync(getWaitingLobby());
+		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + getMaxPlayers() + ")"));
 		gameManager.resetPlayerDataWithoutLobby(player, this);
 		giveLobbyItems(player);
-
-		gameManager.updatePlayerVisibility(player);
-
-		// 检查是否达到最低人数以触发倒计时
-		checkStartCondition();
+		gameManager.checkAndStartCountdown(this);
 	}
 
-	/**
-	 * 以旁观者身份加入正在进行的游戏
-	 */
 	public void addSpectator(Player player) {
 		players.add(player.getUniqueId());
 		spectators.add(player.getUniqueId());
 
 		gameManager.resetPlayerDataWithoutLobby(player, this);
-
 		player.setGameMode(org.bukkit.GameMode.ADVENTURE);
-
 		player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false, false));
 
-		if (seekerSpawn != null) {
-			player.teleportAsync(seekerSpawn);
-		}
+		Location spawn = getSeekerSpawn();
+		if (spawn != null) player.teleportAsync(spawn);
 
 		Bukkit.getScheduler().runTaskLater(AnimalHidePlugin.getInstance(), () -> {
 			if (player.isOnline()) {
@@ -133,14 +187,9 @@ public class Arena {
 		leaveItem.setItemMeta(leaveMeta);
 		player.getInventory().setItem(8, leaveItem);
 
-		gameManager.updatePlayerVisibility(player);
-
-		player.sendMessage(Component.text("你已作为旁观者加入！你可以飞行，但无法穿墙。", NamedTextColor.AQUA));
+		player.sendMessage(Component.text("你已作为旁观者加入！", NamedTextColor.AQUA));
 	}
 
-	/**
-	 * 发放等待大厅的交互物品
-	 */
 	private void giveLobbyItems(Player player) {
 		ItemStack modeItem = new ItemStack(Material.RECOVERY_COMPASS);
 		ItemMeta modeMeta = modeItem.getItemMeta();
@@ -161,40 +210,48 @@ public class Arena {
 		player.getInventory().setItem(8, leaveItem);
 	}
 
-	/**
-	 * 玩家离开房间的逻辑处理
-	 */
 	public void removePlayer(Player player) {
+		removePlayer(player, true);
+	}
+
+	public void removePlayer(Player player, boolean announceQuit) {
 		UUID uuid = player.getUniqueId();
 		players.remove(uuid);
 		boolean wasHider = hiders.remove(uuid);
 		boolean wasSeeker = seekers.remove(uuid);
 		spectators.remove(uuid);
+		modeVotes.remove(uuid);
+		rolePreferences.remove(uuid);
+		matchScores.remove(uuid);
+		matchKills.remove(uuid);
+		arrowHits.remove(uuid);
+		fireworkUses.remove(uuid);
+		disguiseLockouts.remove(uuid);
+		decoyAnchors.remove(uuid);
+		decoySavedWalkSpeed.remove(uuid);
+		decoySavedMoveSpeed.remove(uuid);
 
 		gameManager.resetPlayerData(player, this);
 		AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
 
-		gameManager.updatePlayerVisibility(player);
+		if (announceQuit) {
+			broadcast(Component.text(player.getName() + " 退出了游戏!"));
+		}
 
-		broadcast(Component.text(player.getName() + " 退出了游戏!"));
+		// 如果房间已经没人了，直接摧毁房间释放资源（含世界生成中的 ENDING）
+		if (players.isEmpty()) {
+			gameManager.destroyArenaMatch(this);
+			return;
+		}
 
-		// 中途退出逻辑判定
 		if (state == GameState.PLAYING) {
-			if (wasHider && hiders.isEmpty()) {
-				// 躲藏者全退了，寻找者直接获胜
-				gameManager.endGame(this, PlayerRole.SEEKER);
-			} else if (wasSeeker && seekers.isEmpty()) {
-				// 寻找者全退了，躲藏者直接获胜
-				gameManager.endGame(this, PlayerRole.HIDER);
-			}
-		} else if (state == GameState.STARTING && players.size() < minPlayers) {
-			this.state = GameState.WAITING;
+			if (wasHider && hiders.isEmpty()) gameManager.endGame(this, PlayerRole.SEEKER);
+			else if (wasSeeker && seekers.isEmpty()) gameManager.endGame(this, PlayerRole.HIDER);
+		} else if (state == GameState.STARTING) {
+			gameManager.refreshLobbyCountdown(this);
 		}
 	}
 
-	/**
-	 * 房间内广播消息 (使用 Paper 的 Component)
-	 */
 	public void broadcast(Component message) {
 		for (UUID uuid : players) {
 			Player p = Bukkit.getPlayer(uuid);
@@ -202,20 +259,10 @@ public class Arena {
 		}
 	}
 
-	private void checkStartCondition() {
-		gameManager.checkAndStartCountdown(this);
-	}
-
-	/**
-	 * 获取指定模式的票数
-	 */
 	public int getModeVoteCount(ArenaMode mode) {
 		return (int) modeVotes.values().stream().filter(m -> m == mode).count();
 	}
 
-	/**
-	 * 获取指定身份偏好的人数
-	 */
 	public int getRolePreferenceCount(PlayerRole role) {
 		return (int) rolePreferences.values().stream().filter(r -> r == role).count();
 	}
@@ -231,36 +278,4 @@ public class Arena {
 	public int getMatchKills(UUID uuid) {
 		return matchKills.getOrDefault(uuid, 0);
 	}
-
-	/**
-	 * 重置房间
-	 */
-	public void reset() {
-		for (Entity e : aiAnimals) {
-			e.remove();
-		}
-		aiAnimals.clear();
-		if (this.timeBar != null) {
-			for (UUID uuid : players) {
-				Player p = Bukkit.getPlayer(uuid);
-				if (p != null) {
-					p.hideBossBar(this.timeBar);
-					AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(p);
-				}
-			}
-			this.timeBar = null;
-		}
-		this.state = GameState.WAITING;
-		this.players.clear();
-		this.hiders.clear();
-		this.seekers.clear();
-		this.spectators.clear();
-		this.originalSeekers.clear();
-		this.rolePreferences.clear();
-		this.modeVotes.clear();
-		this.arenaMode = ArenaMode.ANIMAL;
-		this.matchScores.clear();
-		this.matchKills.clear();
-	}
-
 }
