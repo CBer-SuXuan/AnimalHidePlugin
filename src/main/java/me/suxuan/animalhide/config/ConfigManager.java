@@ -2,6 +2,7 @@ package me.suxuan.animalhide.config;
 
 import lombok.Getter;
 import me.suxuan.animalhide.AnimalHidePlugin;
+import me.suxuan.animalhide.game.BlockRegion;
 import me.suxuan.animalhide.game.SpawnPoint;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -12,6 +13,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,20 +72,19 @@ public class ConfigManager {
 		return new Location(null, section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
 				(float) section.getDouble("yaw", 0.0), (float) section.getDouble("pitch", 0.0));
 	}
-
+	
 	/**
-	 * 读取一个 AI 生成点（动态模板坐标 + 可选的种类白名单 + 可选权重）。
-	 * <p>
-	 * 配置示例：
-	 * <pre>
-	 * pigpen:
-	 *   x: 10
-	 *   y: -60
-	 *   z: 10
-	 *   types: [PIG]      # 可选；不填则继承全局 allowed-animals
-	 *   weight: 3.0       # 可选；默认 1.0
-	 * </pre>
+	 * 解析寻找阶段需清空的隔离墙区域（模板坐标，{@code locations.phase-wall} 的 min/max 对角）。
 	 */
+	public BlockRegion getPhaseWallRegion(FileConfiguration config) {
+		ConfigurationSection section = config.getConfigurationSection("locations.phase-wall");
+		if (section == null) return null;
+		Location min = getDynamicLocation(section.getConfigurationSection("min"));
+		Location max = getDynamicLocation(section.getConfigurationSection("max"));
+		if (min == null || max == null) return null;
+		return BlockRegion.fromCorners(min, max);
+	}
+
 	public SpawnPoint getSpawnPoint(ConfigurationSection section) {
 		if (section == null) return null;
 		Location loc = getDynamicLocation(section);

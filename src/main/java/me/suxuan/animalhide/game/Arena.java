@@ -17,6 +17,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
@@ -36,6 +37,14 @@ public class Arena {
 	private GameState state;
 	private BossBar timeBar;
 	private int timeLeft = 0;
+	/**
+	 * 大厅 STARTING 阶段的倒计时任务
+	 */
+	private BukkitTask lobbyCountdownTask;
+	/**
+	 * 当前是否处于「人满加速」短倒计时
+	 */
+	private boolean lobbyFastCountdown;
 	private ArenaMode arenaMode = ArenaMode.ANIMAL;
 
 	private final Map<UUID, ArenaMode> modeVotes = new HashMap<>();
@@ -50,11 +59,17 @@ public class Arena {
 	private final Map<UUID, Integer> arrowHits = new HashMap<>();
 	private final Map<UUID, Integer> fireworkUses = new HashMap<>();
 	private final Map<UUID, Long> disguiseLockouts = new HashMap<>();
-	/** 定点伪装锚点（世界坐标 + 锁定时的伪装朝向） */
+	/**
+	 * 定点伪装锚点（世界坐标 + 锁定时的伪装朝向）
+	 */
 	private final Map<UUID, Location> decoyAnchors = new HashMap<>();
-	/** 进入定点前保存的 walkSpeed，用于恢复 */
+	/**
+	 * 进入定点前保存的 walkSpeed，用于恢复
+	 */
 	private final Map<UUID, Float> decoySavedWalkSpeed = new HashMap<>();
-	/** 进入定点前保存的 MOVEMENT_SPEED 基础值 */
+	/**
+	 * 进入定点前保存的 MOVEMENT_SPEED 基础值
+	 */
 	private final Map<UUID, Double> decoySavedMoveSpeed = new HashMap<>();
 
 	private final List<Entity> aiAnimals = new ArrayList<>();
@@ -116,6 +131,15 @@ public class Arena {
 				.toList();
 	}
 
+	/**
+	 * 寻找阶段：将配置的 {@code phase-wall} 区域全部清空为空气。躲藏阶段不修改方块。
+	 */
+	public void openPhaseDoors() {
+		BlockRegion region = template.getConfigPhaseWall();
+		if (region == null || region.isEmpty() || currentWorld == null) return;
+		region.fillAir(currentWorld);
+	}
+
 	public void addPlayer(Player player) {
 		// 如果世界还没建好，先把玩家塞进名单，等建好了再传送 (由 GameManager 负责扫尾)
 		players.add(player.getUniqueId());
@@ -135,10 +159,7 @@ public class Arena {
 		player.teleportAsync(getWaitingLobby());
 		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + getMaxPlayers() + ")"));
 		gameManager.resetPlayerDataWithoutLobby(player, this);
-		// 无碰撞由 TAB 插件的 scoreboard-teams.enable-collision=false 全局接管，
-		// 这里不再调用 setCollidable(false)，否则箭矢会直接穿过玩家，导致躲藏者射不中寻找者。
 		giveLobbyItems(player);
-		gameManager.updatePlayerVisibility(player);
 		gameManager.checkAndStartCountdown(this);
 	}
 
@@ -166,7 +187,6 @@ public class Arena {
 		leaveItem.setItemMeta(leaveMeta);
 		player.getInventory().setItem(8, leaveItem);
 
-		gameManager.updatePlayerVisibility(player);
 		player.sendMessage(Component.text("你已作为旁观者加入！", NamedTextColor.AQUA));
 	}
 
@@ -191,20 +211,35 @@ public class Arena {
 	}
 
 	public void removePlayer(Player player) {
+		removePlayer(player, true);
+	}
+
+	public void removePlayer(Player player, boolean announceQuit) {
 		UUID uuid = player.getUniqueId();
 		players.remove(uuid);
 		boolean wasHider = hiders.remove(uuid);
 		boolean wasSeeker = seekers.remove(uuid);
 		spectators.remove(uuid);
+		modeVotes.remove(uuid);
+		rolePreferences.remove(uuid);
+		matchScores.remove(uuid);
+		matchKills.remove(uuid);
+		arrowHits.remove(uuid);
+		fireworkUses.remove(uuid);
+		disguiseLockouts.remove(uuid);
+		decoyAnchors.remove(uuid);
+		decoySavedWalkSpeed.remove(uuid);
+		decoySavedMoveSpeed.remove(uuid);
 
 		gameManager.resetPlayerData(player, this);
 		AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
-		gameManager.updatePlayerVisibility(player);
 
-		broadcast(Component.text(player.getName() + " 退出了游戏!"));
+		if (announceQuit) {
+			broadcast(Component.text(player.getName() + " 退出了游戏!"));
+		}
 
-		// 如果房间已经没人了，直接摧毁房间释放资源
-		if (players.isEmpty() && state != GameState.ENDING) {
+		// 如果房间已经没人了，直接摧毁房间释放资源（含世界生成中的 ENDING）
+		if (players.isEmpty()) {
 			gameManager.destroyArenaMatch(this);
 			return;
 		}
@@ -212,8 +247,8 @@ public class Arena {
 		if (state == GameState.PLAYING) {
 			if (wasHider && hiders.isEmpty()) gameManager.endGame(this, PlayerRole.SEEKER);
 			else if (wasSeeker && seekers.isEmpty()) gameManager.endGame(this, PlayerRole.HIDER);
-		} else if (state == GameState.STARTING && players.size() < getMinPlayers()) {
-			this.state = GameState.WAITING;
+		} else if (state == GameState.STARTING) {
+			gameManager.refreshLobbyCountdown(this);
 		}
 	}
 

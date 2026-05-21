@@ -31,6 +31,8 @@ import java.util.List;
 public class DisguiseManager {
 
 	private static final double DEFAULT_PLAYER_MOVE_SPEED = 0.1;
+	private static final double DEFAULT_PLAYER_SNEAK_SPEED = 0.3;
+	private static final double DEFAULT_PLAYER_JUMP_STRENGTH = 0.42;
 	private static final float DEFAULT_PLAYER_WALK_SPEED = 0.2f;
 
 	private final AnimalHidePlugin plugin;
@@ -54,6 +56,7 @@ public class DisguiseManager {
 		if (DisguiseAPI.isDisguised(player)) {
 			DisguiseAPI.undisguiseToAll(player);
 			resetMovement(player);
+			player.setCollidable(true);
 			player.sendMessage(Component.text("你的伪装已解除！", NamedTextColor.RED));
 		}
 	}
@@ -78,6 +81,14 @@ public class DisguiseManager {
 		AttributeInstance moveAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
 		if (moveAttr != null) {
 			moveAttr.setBaseValue(DEFAULT_PLAYER_MOVE_SPEED);
+		}
+		AttributeInstance sneakAttr = player.getAttribute(Attribute.SNEAKING_SPEED);
+		if (sneakAttr != null) {
+			sneakAttr.setBaseValue(DEFAULT_PLAYER_SNEAK_SPEED);
+		}
+		AttributeInstance jumpAttr = player.getAttribute(Attribute.JUMP_STRENGTH);
+		if (jumpAttr != null) {
+			jumpAttr.setBaseValue(DEFAULT_PLAYER_JUMP_STRENGTH);
 		}
 		player.setWalkSpeed(DEFAULT_PLAYER_WALK_SPEED);
 	}
@@ -190,6 +201,7 @@ public class DisguiseManager {
 		DisguiseAPI.disguiseToAll(player, disguise);
 		applyDefaultDisguisePose(player);
 		applyDisguiseMovement(player);
+		player.setCollidable(true);
 	}
 
 	/**

@@ -45,6 +45,19 @@ public class DecoyManager {
 	}
 
 	public void activate(Player player, Arena arena) {
+		if (player.isFlying() || player.isGliding()) {
+			player.sendMessage(Component.text("✘ 空中无法使用定点伪装！", NamedTextColor.RED));
+			return;
+		}
+		if (player.isInWater() || player.isInLava()) {
+			player.sendMessage(Component.text("✘ 不能在水中或熔岩里使用定点伪装！", NamedTextColor.RED));
+			return;
+		}
+		if (!player.isOnGround()) {
+			player.sendMessage(Component.text("✘ 必须站在地面上才能使用定点伪装！", NamedTextColor.RED));
+			return;
+		}
+
 		UUID uuid = player.getUniqueId();
 		Location anchor = player.getLocation().clone();
 		arena.getDecoyAnchors().put(uuid, anchor);

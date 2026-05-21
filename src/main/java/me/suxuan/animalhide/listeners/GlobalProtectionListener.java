@@ -1,5 +1,7 @@
 package me.suxuan.animalhide.listeners;
 
+import io.papermc.paper.event.player.PlayerFlowerPotManipulateEvent;
+import io.papermc.paper.event.player.PlayerOpenSignEvent;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -7,7 +9,10 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Hanging;
 import org.bukkit.entity.ItemFrame;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -15,19 +20,16 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockIgniteEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PlayerLeashEntityEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
-import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
-import org.bukkit.event.player.PlayerBedEnterEvent;
-import org.bukkit.event.player.PlayerBucketEmptyEvent;
-import org.bukkit.event.player.PlayerBucketFillEvent;
-import org.bukkit.event.player.PlayerFishEvent;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerItemConsumeEvent;
-import org.bukkit.event.player.PlayerSignOpenEvent;
-import org.bukkit.event.player.PlayerTakeLecternBookEvent;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.*;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
-import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryView;
 
 /**
  * 全局防护监听器：在「所有世界」对玩家强制执行的安全规则。
@@ -51,9 +53,22 @@ public class GlobalProtectionListener implements Listener {
 		Block block = event.getClickedBlock();
 		if (block == null) return;
 
+		if (isProtectedPot(block.getType())) {
+			denyPotInteraction(event);
+			return;
+		}
 		if (isProtectedInteractable(block.getType())) {
 			event.setUseInteractedBlock(Event.Result.DENY);
 		}
+	}
+
+	/**
+	 * 禁止往花盆 / 饰纹陶罐放入或取出物品（Paper 专用事件，覆盖普通交互拦截遗漏的情况）。
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onFlowerPotManipulate(PlayerFlowerPotManipulateEvent event) {
+		if (shouldBypass(event.getPlayer())) return;
+		event.setCancelled(true);
 	}
 
 	/**
@@ -107,6 +122,32 @@ public class GlobalProtectionListener implements Listener {
 		if (!(event.getRemover() instanceof Player player)) return;
 		if (shouldBypass(player)) return;
 
+		event.setCancelled(true);
+	}
+
+	/**
+	 * 禁止对生物使用栓绳（在交互阶段取消，避免仅取消 Leash 事件时仍消耗栓绳）。
+	 * 局内躲藏者的栓绳道具仅用于对空气/方块右键的定点伪装，见 {@link InteractionListener}。
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onLeadInteractEntity(PlayerInteractEntityEvent event) {
+		if (shouldBypass(event.getPlayer())) return;
+		if (!(event.getRightClicked() instanceof LivingEntity)) return;
+
+		ItemStack item = event.getHand() == EquipmentSlot.HAND
+				? event.getPlayer().getInventory().getItemInMainHand()
+				: event.getPlayer().getInventory().getItemInOffHand();
+		if (item.getType() == Material.LEAD) {
+			event.setCancelled(true);
+		}
+	}
+
+	/**
+	 * 兜底：若仍触发了拴绳事件则取消（不应再消耗物品）。
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onLeash(PlayerLeashEntityEvent event) {
+		if (shouldBypass(event.getPlayer())) return;
 		event.setCancelled(true);
 	}
 
@@ -201,7 +242,52 @@ public class GlobalProtectionListener implements Listener {
 	}
 
 	// ==================================================================================
-	// SECTION 4：界面 / 玩家状态（睡觉、讲台取书、告示牌编辑、载具进入）
+	// SECTION 4：副手（禁止 F 键交换与任何方式放入副手）
+	// ==================================================================================
+
+	/**
+	 * 禁止按 F 在主手与副手之间交换物品。
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onSwapHandItems(PlayerSwapHandItemsEvent event) {
+		if (shouldBypass(event.getPlayer())) return;
+		event.setCancelled(true);
+	}
+
+	/**
+	 * 禁止在背包界面点击副手格、以及背包内的 F 键（SWAP_OFFHAND）。
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onInventoryClickOffhand(InventoryClickEvent event) {
+		if (!(event.getWhoClicked() instanceof Player player)) return;
+		if (shouldBypass(player)) return;
+
+		if (event.getClick() == ClickType.SWAP_OFFHAND || isOffhandSlotClick(event)) {
+			event.setCancelled(true);
+		}
+	}
+
+	/**
+	 * 禁止拖拽物品到副手格。
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onInventoryDragOffhand(InventoryDragEvent event) {
+		if (!(event.getWhoClicked() instanceof Player player)) return;
+		if (shouldBypass(player)) return;
+
+		InventoryView view = event.getView();
+		if (view.getBottomInventory().getHolder() != player) return;
+
+		for (int rawSlot : event.getRawSlots()) {
+			if (view.convertSlot(rawSlot) == OFFHAND_SLOT) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+	}
+
+	// ==================================================================================
+	// SECTION 5：界面 / 玩家状态（睡觉、讲台取书、告示牌编辑、载具进入）
 	// ==================================================================================
 
 	/**
@@ -226,7 +312,7 @@ public class GlobalProtectionListener implements Listener {
 	 * 禁止打开告示牌的编辑面板（1.20+ 双面告示牌右键也走这里）。
 	 */
 	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
-	public void onSignOpen(PlayerSignOpenEvent event) {
+	public void onSignOpen(PlayerOpenSignEvent event) {
 		if (shouldBypass(event.getPlayer())) return;
 		event.setCancelled(true);
 	}
@@ -256,6 +342,26 @@ public class GlobalProtectionListener implements Listener {
 	/**
 	 * 是否属于会被玩家右键改变状态/打开的可交互方块。
 	 */
+	private static final int OFFHAND_SLOT = 40;
+
+	private boolean isOffhandSlotClick(InventoryClickEvent event) {
+		if (!(event.getWhoClicked() instanceof Player player)) return false;
+		if (event.getSlot() != OFFHAND_SLOT) return false;
+		Inventory clicked = event.getClickedInventory();
+		if (clicked == null) return false;
+		return clicked.getHolder() == player || clicked.getType() == InventoryType.PLAYER;
+	}
+
+	private boolean isProtectedPot(Material type) {
+		return type == Material.DECORATED_POT || Tag.FLOWER_POTS.isTagged(type);
+	}
+
+	private void denyPotInteraction(PlayerInteractEvent event) {
+		event.setCancelled(true);
+		event.setUseInteractedBlock(Event.Result.DENY);
+		event.setUseItemInHand(Event.Result.DENY);
+	}
+
 	private boolean isProtectedInteractable(Material type) {
 		return Tag.DOORS.isTagged(type)
 				|| Tag.TRAPDOORS.isTagged(type)

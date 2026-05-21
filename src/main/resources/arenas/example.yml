@@ -6,6 +6,11 @@ locations:
   waiting-lobby: { x: -20.5, y: -50, z: -25.5, yaw: 0.0, pitch: 2.0 } # 游戏开始前的等待室
   hider-spawn: { x: -5.5, y: -51, z: 19.5, yaw: 135.0, pitch: 10.0 } # 躲藏者出生点
   seeker-spawn: { x: -15.5, y: -50, z: -16.5, yaw: 0, pitch: 10.0 } # 寻找者出生点
+  # 隔离墙区域（模板坐标）：躲藏阶段不改动；寻找者出动时将该长方体范围内方块全部变为空气
+  # min / max 为对角点（整数方块坐标，两端均包含）
+  phase-wall:
+    min: { x: -15, y: -51, z: -2 }
+    max: { x: -10, y: -49, z: 3 }
   # AI 生成点（每个点位以预设半径生成动物群落）
   # 可选字段：
   #   types  - 该点位允许生成的种类（数组）。不填则回退到下方 allowed-animals / allowed-monsters
@@ -19,6 +24,9 @@ locations:
 settings:
   min-players: 2 # 最少玩家
   max-players: 12 # 最多玩家
+  countdown-seconds: 120 # 达到最少人数后的等待倒计时（秒）
+  fast-countdown-seconds: 20 # 人数达到 fast-start-percent 后的快速倒计时（秒）
+  fast-start-percent: 0.8 # 达到最大人数的该比例时进入快速倒计时（0-1，如 0.8 表示 12 人房需 >= 10 人）
   seeker-ratio: 0.2 # 寻找者比例（0-1之间）
   preparation-time: 5 # 躲藏时间（秒）
   game-duration: 300 # 游戏时长（秒）

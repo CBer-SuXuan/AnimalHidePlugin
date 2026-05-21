@@ -37,6 +37,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 		register(new DebugSubCommand(gameManager));
 		register(new ArenaSubCommand(gameManager));
 		register(new ScoreSubCommand(gameManager));
+		register(new ForceStartSubCommand(gameManager));
 	}
 
 	private void register(SubCommand sub) {

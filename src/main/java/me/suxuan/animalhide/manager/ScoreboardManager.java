@@ -12,7 +12,11 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scoreboard.*;
+import org.bukkit.scoreboard.Criteria;
+import org.bukkit.scoreboard.DisplaySlot;
+import org.bukkit.scoreboard.Objective;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.Team;
 
 import java.util.*;
 
@@ -26,6 +30,8 @@ public class ScoreboardManager {
 
 	// 【新增】用于缓存玩家上一次的计分板内容
 	private final Map<UUID, List<String>> lastBoardData = new HashMap<>();
+
+	private static final String COLLISION_TEAM = "ah_collide";
 
 	public ScoreboardManager(AnimalHidePlugin plugin, GameManager gameManager) {
 		this.plugin = plugin;
@@ -41,11 +47,13 @@ public class ScoreboardManager {
 			@Override
 			public void run() {
 				for (Player player : Bukkit.getOnlinePlayers()) {
+					player.setCollidable(true);
 					Arena arena = gameManager.getArenaByPlayer(player);
 					if (arena != null) {
-						updateBoard(player, arena); // 游戏内计分板
+						ensureCollisionTeam(player.getScoreboard(), arena);
+						updateBoard(player, arena);
 					} else {
-						updateLobbyBoard(player); // 大厅计分板
+						updateLobbyBoard(player);
 					}
 				}
 			}
@@ -55,14 +63,9 @@ public class ScoreboardManager {
 	/**
 	 * 更新单个玩家的计分板（仅负责右侧 sidebar 渲染）。
 	 *
-	 * <p>TAB 列表的染色 / 同队隔离 / 跨房间隐藏 / 玩家无碰撞 全部交给 TAB 插件实现：
-	 * <ul>
-	 *   <li>染色：{@code %rel_animalhide_color%} + {@code %animalhide_tag%}</li>
-	 *   <li>跨房间隔离：TAB {@code per-world-playerlist}</li>
-	 *   <li>无碰撞：TAB {@code scoreboard-teams.enable-collision=false}</li>
-	 * </ul>
-	 * 这里不再维护 ah_allies / ah_enemies / ah_wait 这些 scoreboard team，
-	 * 也不要调用 {@code Player#setCollidable(false)}（会让箭矢直接穿过玩家）。
+	 * <p>TAB 仍负责列表染色 / 跨房间隐藏等；碰撞由本插件在独立计分板队伍 {@value #COLLISION_TEAM}
+	 * 上强制 {@link Team.Option#COLLISION_RULE} = ALWAYS，并周期性 {@code setCollidable(true)}，
+	 * 避免躲藏者贴地或躲在大型 AI 模型下时寻找者穿模找不到人。
 	 */
 	private void updateBoard(Player player, Arena arena) {
 		Scoreboard board = player.getScoreboard();
@@ -185,7 +188,31 @@ public class ScoreboardManager {
 	 */
 	public void removeBoard(Player player) {
 		player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+		player.setCollidable(true);
 		lastBoardData.remove(player.getUniqueId());
+	}
+
+	/**
+	 * 本局所有玩家归入同一队伍并开启碰撞，覆盖 TAB 等插件的「无碰撞」队伍设置。
+	 */
+	private void ensureCollisionTeam(Scoreboard board, Arena arena) {
+		Team team = board.getTeam(COLLISION_TEAM);
+		if (team == null) {
+			team = board.registerNewTeam(COLLISION_TEAM);
+			team.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.ALWAYS);
+		}
+		for (String entry : new HashSet<>(team.getEntries())) {
+			Player member = Bukkit.getPlayerExact(entry);
+			if (member == null || gameManager.getArenaByPlayer(member) != arena) {
+				team.removeEntry(entry);
+			}
+		}
+		for (UUID uuid : arena.getPlayers()) {
+			Player member = Bukkit.getPlayer(uuid);
+			if (member != null && !team.hasEntry(member.getName())) {
+				team.addEntry(member.getName());
+			}
+		}
 	}
 
 	private String getStateString(GameState state) {
