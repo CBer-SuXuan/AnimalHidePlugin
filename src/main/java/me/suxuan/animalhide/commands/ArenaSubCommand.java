@@ -35,7 +35,7 @@ import java.util.Locale;
  */
 public class ArenaSubCommand implements SubCommand {
 
-	private static final List<String> ACTIONS = Arrays.asList("addspawn", "removespawn", "listspawns", "tp", "preview");
+	private static final List<String> ACTIONS = Arrays.asList("addspawn", "quickspawn", "removespawn", "listspawns", "tp", "preview");
 
 	private final GameManager gameManager;
 	private final ConfigManager configManager;
@@ -72,6 +72,7 @@ public class ArenaSubCommand implements SubCommand {
 
 		switch (action) {
 			case "addspawn" -> handleAddSpawn(sender, subArgs);
+			case "quickspawn" -> handleQuickSpawn(sender, subArgs);
 			case "removespawn" -> handleRemoveSpawn(sender, subArgs);
 			case "listspawns" -> handleListSpawns(sender, subArgs);
 			case "tp" -> handleTp(sender, subArgs);
@@ -153,6 +154,51 @@ public class ArenaSubCommand implements SubCommand {
 				.append(Component.text(String.format(" @ (%.1f, %.1f, %.1f)", loc.getX(), loc.getY(), loc.getZ()), NamedTextColor.GRAY)));
 		sender.sendMessage(Component.text("  types = " + (types == null ? "* (继承全局)" : String.join(",", types))
 				+ "   weight = " + weight, NamedTextColor.GRAY));
+		sender.sendMessage(Component.text("  ⚠ 请确认你当前在 " + mapName + " 的 SlimeArena 实例世界中。", NamedTextColor.YELLOW));
+	}
+
+	// ============================================================
+	// quickspawn <map>  — 自动生成 pointN，types=*，weight=1.0
+	// ============================================================
+	private void handleQuickSpawn(CommandSender sender, String[] args) {
+		if (!(sender instanceof Player player)) {
+			sender.sendMessage(Component.text("quickspawn 必须由玩家执行（需要读取当前坐标）。", NamedTextColor.RED));
+			return;
+		}
+
+		String mapName;
+		if (args.length >= 1) {
+			mapName = args[0];
+		} else {
+			me.suxuan.animalhide.game.Arena arena = gameManager.getArenaByPlayer(player);
+			if (arena == null) {
+				sender.sendMessage(Component.text("你当前不在任何房间中，请使用 /hide arena quickspawn <地图名>。", NamedTextColor.RED));
+				return;
+			}
+			mapName = arena.getArenaName();
+		}
+		FileConfiguration config = configManager.getArenaConfigs().get(mapName);
+		if (config == null || configManager.getArenaFile(mapName) == null) {
+			sender.sendMessage(Component.text("找不到地图配置: " + mapName, NamedTextColor.RED));
+			return;
+		}
+
+		ConfigurationSection sec = config.getConfigurationSection("locations.ai-spawns");
+		String pointName = nextAutoPointName(sec);
+		Location loc = player.getLocation();
+		SpawnPoint point = new SpawnPoint(loc, null, 1.0);
+
+		boolean ok = configManager.saveSpawnPoint(mapName, pointName, point);
+		if (!ok) {
+			sender.sendMessage(Component.text("保存失败！查看控制台日志。", NamedTextColor.RED));
+			return;
+		}
+
+		gameManager.reloadTemplatesOnly();
+		sender.sendMessage(Component.text("✔ 已快速写入点位 ", NamedTextColor.GREEN)
+				.append(Component.text(mapName + "." + pointName, NamedTextColor.AQUA))
+				.append(Component.text(String.format(" @ (%.1f, %.1f, %.1f)", loc.getX(), loc.getY(), loc.getZ()), NamedTextColor.GRAY)));
+		sender.sendMessage(Component.text("  types = * (继承全局)   weight = 1.0", NamedTextColor.GRAY));
 		sender.sendMessage(Component.text("  ⚠ 请确认你当前在 " + mapName + " 的 SlimeArena 实例世界中。", NamedTextColor.YELLOW));
 	}
 
@@ -318,6 +364,7 @@ public class ArenaSubCommand implements SubCommand {
 	private void sendActionHelp(CommandSender sender) {
 		sender.sendMessage(Component.text("=== /hide arena 用法 ===", NamedTextColor.GOLD));
 		sender.sendMessage(Component.text("/hide arena addspawn <地图> <点位名> <types|*> [weight]", NamedTextColor.AQUA));
+		sender.sendMessage(Component.text("/hide arena quickspawn [地图]", NamedTextColor.AQUA));
 		sender.sendMessage(Component.text("/hide arena removespawn <地图> <点位名>", NamedTextColor.AQUA));
 		sender.sendMessage(Component.text("/hide arena listspawns <地图>", NamedTextColor.AQUA));
 		sender.sendMessage(Component.text("/hide arena tp <地图> <点位名>", NamedTextColor.AQUA));
@@ -376,5 +423,14 @@ public class ArenaSubCommand implements SubCommand {
 		ConfigurationSection sec = config.getConfigurationSection("locations.ai-spawns");
 		if (sec == null) return Collections.emptyList();
 		return new ArrayList<>(sec.getKeys(false));
+	}
+
+	private String nextAutoPointName(ConfigurationSection sec) {
+		List<String> keys = sec == null ? Collections.emptyList() : new ArrayList<>(sec.getKeys(false));
+		int index = 1;
+		while (keys.contains("point" + index)) {
+			index++;
+		}
+		return "point" + index;
 	}
 }

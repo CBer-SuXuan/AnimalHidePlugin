@@ -42,6 +42,12 @@ public class ConfigManager {
 		if (!arenaFolder.exists()) {
 			arenaFolder.mkdirs();
 			plugin.saveResource("arenas/example.yml", false);
+			plugin.saveResource("arenas/queue.yml", false);
+		} else {
+			File queueFile = new File(arenaFolder, "queue.yml");
+			if (!queueFile.exists()) {
+				plugin.saveResource("arenas/queue.yml", false);
+			}
 		}
 
 		File[] files = arenaFolder.listFiles((dir, name) -> name.endsWith(".yml"));
@@ -97,6 +103,26 @@ public class ConfigManager {
 
 	public boolean isHiderDisguiseInvisibilityEnabled() {
 		return mainConfig.getBoolean("features.hider-disguise-invisibility", true);
+	}
+
+	public boolean isQueueEnabled() {
+		return mainConfig.getBoolean("queue.enabled", true);
+	}
+
+	public String getQueueTemplateName() {
+		return mainConfig.getString("queue.template-name", "queue");
+	}
+
+	public boolean isNormalLeaveAllowed() {
+		return mainConfig.getBoolean("queue.allow-normal-leave", false);
+	}
+
+	public double getSeekerPreReleaseMoveSpeed() {
+		return Math.max(0.01, mainConfig.getDouble("seeker.pre-release-move-speed", 0.10));
+	}
+
+	public double getSeekerReleasedMoveSpeed() {
+		return Math.max(0.01, mainConfig.getDouble("seeker.released-move-speed", 0.11));
 	}
 
 	/**

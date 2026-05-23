@@ -61,6 +61,7 @@ allowed-monsters:
 # taunt-risky             冒险嘲讽（萤石粉）得分
 # taunt-firework          烟花嘲讽得分
 # taunt-dangerous         危险嘲讽（红石火把）得分
+# seeker-pickup-poop      寻找者拾取便便得分
 # ============================================================
 scoring:
   seeker-kill-hider: 10
@@ -73,3 +74,4 @@ scoring:
   taunt-risky: 4
   taunt-firework: 7
   taunt-dangerous: 10
+  seeker-pickup-poop: 1

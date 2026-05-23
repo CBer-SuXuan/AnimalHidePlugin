@@ -31,7 +31,7 @@ public class JoinSubCommand implements SubCommand {
 
 	@Override
 	public String getPermission() {
-		return null;
+		return "animalhide.admin.join";
 	}
 
 	@Override

@@ -160,6 +160,9 @@ public class Arena {
 		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + getMaxPlayers() + ")"));
 		gameManager.resetPlayerDataWithoutLobby(player, this);
 		giveLobbyItems(player);
+		if (template.isQueueRoom()) {
+			player.sendMessage(Component.text("你已进入匹配队列房，倒计时结束后将随机进入正式地图。", NamedTextColor.AQUA));
+		}
 		gameManager.checkAndStartCountdown(this);
 	}
 

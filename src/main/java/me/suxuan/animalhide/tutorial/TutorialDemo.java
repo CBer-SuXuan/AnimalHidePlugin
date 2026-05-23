@@ -65,7 +65,7 @@ public enum TutorialDemo {
 			Camp.SEEKER, Carrier.ARMOR_STAND, null, Material.WOODEN_SWORD,
 			"§c§l寻找者装备",
 			"§f木剑 + 无限弓  §7·  §a追杀躲藏者",
-			"§7游戏开始前会被致盲与定身 · 解除后开始狩猎",
+			"§7开局可自由移动 · 寻找阶段开始后获得少量加速",
 			80L  // 4s 挥剑
 	),
 	EXPLOSIVE_SHEEP(

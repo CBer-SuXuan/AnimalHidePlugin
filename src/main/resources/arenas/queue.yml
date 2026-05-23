@@ -1,0 +1,40 @@
+name: "等待大厅"
+template-name: "queue"
+
+# queue 地图主要使用 waiting-lobby 作为所有玩家进入队列房后的集合点
+locations:
+  waiting-lobby: { x: 74.5, y: 3.0, z: 150.5, yaw: 0.0, pitch: 10.0 }
+  hider-spawn: { x: 0.5, y: 64.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
+  seeker-spawn: { x: 0.5, y: 64.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
+  phase-wall:
+    min: { x: 0, y: 64, z: 0 }
+    max: { x: 0, y: 64, z: 0 }
+  ai-spawns: { }
+
+# queue 房自己的等待规则与人数限制
+settings:
+  min-players: 4
+  max-players: 20
+  countdown-seconds: 120
+  fast-countdown-seconds: 10
+  fast-start-percent: 0.8
+  seeker-ratio: 0.2
+  preparation-time: 5
+  game-duration: 600
+  ai-animal-count: 0
+
+allowed-animals: [ ]
+allowed-monsters: [ ]
+
+scoring:
+  seeker-kill-hider: 10
+  seeker-win-original: 20
+  seeker-win-infected: 5
+  hider-win: 20
+  hider-survival-reward: 1
+  hider-survival-interval: 15
+  taunt-safe: 2
+  taunt-risky: 4
+  taunt-firework: 7
+  taunt-dangerous: 10
+  seeker-pickup-poop: 1

@@ -81,7 +81,6 @@ public class InteractionListener implements Listener {
 		Player player = event.getPlayer();
 		Arena arena = gameManager.getArenaByPlayer(player);
 		if (arena == null) return;
-		event.setCancelled(true);
 
 		if (arena.getState() == GameState.WAITING || arena.getState() == GameState.STARTING) {
 			handleLobbyInteract(event, player);

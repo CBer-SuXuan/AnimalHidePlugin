@@ -132,6 +132,15 @@ public class GameRuleListener implements Listener {
 			return;
 		}
 
+		if (arena.getTemplate().isQueueRoom() && event.getCause() == EntityDamageEvent.DamageCause.VOID) {
+			event.setCancelled(true);
+			if (arena.getWaitingLobby() != null) {
+				player.teleportAsync(arena.getWaitingLobby());
+				player.sendActionBar(Component.text("已将你传回队列出生点。", NamedTextColor.YELLOW));
+			}
+			return;
+		}
+
 		if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK &&
 				event.getCause() != EntityDamageEvent.DamageCause.PROJECTILE) {
 			event.setCancelled(true);

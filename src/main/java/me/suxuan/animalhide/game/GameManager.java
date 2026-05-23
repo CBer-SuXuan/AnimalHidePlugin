@@ -34,6 +34,7 @@ public class GameManager {
 	private final MatchResultService matchResultService;
 	private final LobbyCountdownService lobbyCountdownService;
 	private final MatchTimerService matchTimerService;
+	@Getter
 	private final RoleSetupService roleSetupService;
 	private final RoleConversionService roleConversionService;
 
@@ -52,7 +53,7 @@ public class GameManager {
 		this.matchResultService = new MatchResultService(plugin, playerStateService);
 		this.lobbyCountdownService = new LobbyCountdownService(plugin, configManager, this::startGame);
 		this.matchTimerService = new MatchTimerService(plugin, configManager, arena -> endGame(arena, PlayerRole.HIDER));
-		this.roleSetupService = new RoleSetupService(disguiseManager);
+		this.roleSetupService = new RoleSetupService(disguiseManager, configManager);
 		this.roleConversionService = new RoleConversionService(plugin, disguiseManager, roleSetupService, this::endGame);
 		loadTemplates();
 	}
@@ -62,6 +63,7 @@ public class GameManager {
 	 */
 	private void loadTemplates() {
 		templates.clear();
+		String queueTemplateName = configManager.getQueueTemplateName();
 		for (Map.Entry<String, org.bukkit.configuration.file.FileConfiguration> entry : configManager.getArenaConfigs().entrySet()) {
 			String name = entry.getKey();
 			org.bukkit.configuration.file.FileConfiguration config = entry.getValue();
@@ -90,8 +92,9 @@ public class GameManager {
 
 			ScoringConfig scoring = ScoringConfig.from(config.getConfigurationSection("scoring"));
 			BlockRegion phaseWall = configManager.getPhaseWallRegion(config);
+			boolean queueRoom = configManager.isQueueEnabled() && templateName.equalsIgnoreCase(queueTemplateName);
 
-			ArenaTemplate template = new ArenaTemplate(name, templateName, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, phaseWall, aiAnimalCount, scoring);
+			ArenaTemplate template = new ArenaTemplate(name, templateName, queueRoom, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, phaseWall, aiAnimalCount, scoring);
 			templates.put(name, template);
 			plugin.getComponentLogger().info("已加载竞技场模板: {}", name);
 		}
@@ -105,6 +108,55 @@ public class GameManager {
 			if (match.getPlayers().contains(player.getUniqueId())) return match;
 		}
 		return null;
+	}
+
+	public void autoJoinQueue(Player player) {
+		if (!configManager.isQueueEnabled()) {
+			return;
+		}
+		if (getArenaByPlayer(player) != null) {
+			return;
+		}
+
+		ArenaTemplate queueTemplate = templates.values().stream()
+				.filter(ArenaTemplate::isQueueRoom)
+				.findFirst()
+				.orElse(null);
+		if (queueTemplate == null) {
+			player.sendMessage(Component.text("队列房模板未配置，无法自动匹配。", NamedTextColor.RED));
+			return;
+		}
+
+		for (Arena match : activeMatches) {
+			if (match.getTemplate().isQueueRoom()
+					&& match.getPlayers().size() < match.getMaxPlayers()
+					&& (match.getState() == GameState.WAITING || match.getState() == GameState.STARTING || match.getState() == GameState.ENDING)) {
+				match.addPlayer(player);
+				return;
+			}
+		}
+
+		String instanceName = queueTemplate.getMapName() + "_" + UUID.randomUUID().toString().substring(0, 6);
+		Arena queueMatch = new Arena(this, queueTemplate, instanceName);
+		activeMatches.add(queueMatch);
+		queueMatch.addPlayer(player);
+
+		slimeArenaManager.createArenaAsync(queueTemplate.getTemplateName(), instanceName).thenAccept(world -> {
+			Bukkit.getScheduler().runTask(plugin, () -> {
+				if (!activeMatches.contains(queueMatch) || queueMatch.getPlayers().isEmpty()) {
+					return;
+				}
+				queueMatch.setCurrentWorld(world);
+				queueMatch.setState(GameState.WAITING);
+				for (UUID uuid : new ArrayList<>(queueMatch.getPlayers())) {
+					Player p = Bukkit.getPlayer(uuid);
+					if (p != null) queueMatch.teleportAndInitPlayer(p);
+				}
+			});
+		}).exceptionally(ex -> {
+			Bukkit.getScheduler().runTask(plugin, () -> abortArenaCreation(queueMatch, Component.text("队列房创建失败，请稍后再试！", NamedTextColor.RED)));
+			return null;
+		});
 	}
 
 	/**
@@ -256,6 +308,10 @@ public class GameManager {
 	 * 游戏正式开始：分配阵营，传送玩家，设置变身
 	 */
 	private void startGame(Arena arena) {
+		if (arena.getTemplate().isQueueRoom()) {
+			startQueueDispatch(arena);
+			return;
+		}
 		lobbyCountdownService.cancelLobbyCountdown(arena);
 		arena.setState(GameState.PLAYING);
 
@@ -401,7 +457,15 @@ public class GameManager {
 	 * @param winner 获胜的阵营
 	 */
 	public void endGame(Arena arena, PlayerRole winner) {
-		matchResultService.endGame(arena, winner, this::destroyArenaMatch);
+		matchResultService.endGame(arena, winner, finishedArena -> {
+			for (UUID uuid : new ArrayList<>(finishedArena.getPlayers())) {
+				Player player = Bukkit.getPlayer(uuid);
+				if (player != null) {
+					Bukkit.getScheduler().runTaskLater(plugin, () -> autoJoinQueue(player), 2L);
+				}
+			}
+			destroyArenaMatch(finishedArena);
+		});
 	}
 
 	/**
@@ -511,10 +575,60 @@ public class GameManager {
 				resetPlayerData(p, match);
 				AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(p);
 				p.sendMessage(message);
+				Bukkit.getScheduler().runTaskLater(plugin, () -> autoJoinQueue(p), 2L);
 			}
 		}
 		match.getPlayers().clear();
 		destroyArenaMatch(match);
+	}
+
+	private void startQueueDispatch(Arena queueArena) {
+		lobbyCountdownService.cancelLobbyCountdown(queueArena);
+		List<ArenaTemplate> playableTemplates = templates.values().stream()
+				.filter(template -> !template.isQueueRoom())
+				.toList();
+		if (playableTemplates.isEmpty()) {
+			queueArena.broadcast(Component.text("暂无可用正式地图，队列房无法发车。", NamedTextColor.RED));
+			queueArena.setState(GameState.WAITING);
+			return;
+		}
+
+		ArenaTemplate selected = playableTemplates.get(new Random().nextInt(playableTemplates.size()));
+		List<UUID> queuedPlayers = new ArrayList<>(queueArena.getPlayers());
+		String instanceName = selected.getMapName() + "_" + UUID.randomUUID().toString().substring(0, 6);
+		Arena match = new Arena(this, selected, instanceName);
+		activeMatches.add(match);
+		queueArena.broadcast(Component.text("队列已完成，正在随机前往地图: " + selected.getMapName(), NamedTextColor.GOLD));
+
+		slimeArenaManager.createArenaAsync(selected.getTemplateName(), instanceName).thenAccept(world -> {
+			Bukkit.getScheduler().runTask(plugin, () -> {
+				if (!activeMatches.contains(match)) return;
+				match.setCurrentWorld(world);
+				match.setState(GameState.WAITING);
+				for (UUID uuid : queuedPlayers) {
+					Player player = Bukkit.getPlayer(uuid);
+					if (player == null) continue;
+					queueArena.getPlayers().remove(uuid);
+					player.sendMessage(Component.text("已从匹配队列前往正式地图: " + selected.getMapName(), NamedTextColor.GOLD));
+					match.addPlayer(player);
+				}
+				queueArena.getPlayers().clear();
+				lobbyCountdownService.cancelLobbyCountdown(queueArena);
+				queueArena.setState(GameState.ENDING);
+				Bukkit.getScheduler().runTaskLater(plugin, () -> destroyArenaMatch(queueArena), 10L);
+				Bukkit.getScheduler().runTaskLater(plugin, () -> {
+					if (activeMatches.contains(match) && match.getState() == GameState.WAITING) {
+						startGame(match);
+					}
+				}, 5L);
+			});
+		}).exceptionally(ex -> {
+			Bukkit.getScheduler().runTask(plugin, () -> {
+				queueArena.broadcast(Component.text("正式地图创建失败，已返回队列等待。", NamedTextColor.RED));
+				queueArena.setState(GameState.WAITING);
+			});
+			return null;
+		});
 	}
 
 }

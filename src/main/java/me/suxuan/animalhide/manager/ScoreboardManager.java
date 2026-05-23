@@ -12,11 +12,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scoreboard.Criteria;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.Team;
+import org.bukkit.scoreboard.*;
 
 import java.util.*;
 
@@ -101,10 +97,15 @@ public class ScoreboardManager {
 			lines.add("§b");
 			lines.add("§f人数: §a" + arena.getPlayers().size() + "§8/§a" + arena.getMaxPlayers());
 
-			lines.add("§6");
-			lines.add("§f模式投票:");
-			lines.add(" §7- 生物: §e" + arena.getModeVoteCount(ArenaMode.ANIMAL));
-			lines.add(" §7- 怪物: §e" + arena.getModeVoteCount(ArenaMode.MONSTER));
+			if (arena.getTemplate().isQueueRoom()) {
+				lines.add("§6");
+				lines.add("§e随机地图");
+			} else {
+				lines.add("§6");
+				lines.add("§f模式投票:");
+				lines.add(" §7- 生物: §e" + arena.getModeVoteCount(ArenaMode.ANIMAL));
+				lines.add(" §7- 怪物: §e" + arena.getModeVoteCount(ArenaMode.MONSTER));
+			}
 
 			if (arena.getState() == GameState.STARTING) {
 				lines.add("§f倒计时: §e" + arena.getTimeLeft() + "秒");

@@ -12,7 +12,6 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Sheep;
-import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
@@ -37,7 +36,7 @@ public class ExplosiveSheepSkill extends ItemBasedSkill {
 	@Override
 	public void execute(SkillContext context, Entity target) {
 		Player player = context.player();
-		if (player.hasPotionEffect(PotionEffectType.BLINDNESS)) {
+		if (context.arena().isHidePhase()) {
 			player.sendActionBar(Component.text("还没到寻找者出动的时间，无法使用！", NamedTextColor.RED));
 			return;
 		}

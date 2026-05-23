@@ -6,13 +6,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Hanging;
-import org.bukkit.entity.ItemFrame;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.entity.*;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -28,8 +22,10 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.*;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
+import org.bukkit.inventory.ItemStack;
 
 /**
  * 全局防护监听器：在「所有世界」对玩家强制执行的安全规则。
@@ -109,7 +105,9 @@ public class GlobalProtectionListener implements Listener {
 		if (!(event.getDamager() instanceof Player player)) return;
 		if (shouldBypass(player)) return;
 
-		if (event.getEntity() instanceof ArmorStand || event.getEntity() instanceof Hanging) {
+		if (event.getEntity() instanceof ArmorStand
+				|| event.getEntity() instanceof Hanging
+				|| event.getEntity() instanceof Display) {
 			event.setCancelled(true);
 		}
 	}
@@ -138,6 +136,37 @@ public class GlobalProtectionListener implements Listener {
 				? event.getPlayer().getInventory().getItemInMainHand()
 				: event.getPlayer().getInventory().getItemInOffHand();
 		if (item.getType() == Material.LEAD) {
+			event.setCancelled(true);
+		}
+	}
+
+	/**
+	 * 拦截高版本 Display 实体（物品展示/方块展示/文本展示）的右键交互。
+	 * 这些实体不属于 Hanging / ItemFrame，需要单独处理。
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onDisplayInteract(PlayerInteractEntityEvent event) {
+		if (event.getHand() != EquipmentSlot.HAND) return;
+		if (!(event.getRightClicked() instanceof Display)) return;
+		if (shouldBypass(event.getPlayer())) return;
+
+		event.setCancelled(true);
+	}
+
+	/**
+	 * 防止玩家对羊进行染色、对蘑菇牛剪蘑菇等“右键改造生物外观”的操作。
+	 * 这里按手持物兜底拦截，避免误伤普通空手交互。
+	 */
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onEntityCosmeticInteract(PlayerInteractEntityEvent event) {
+		if (shouldBypass(event.getPlayer())) return;
+		if (!(event.getRightClicked() instanceof LivingEntity)) return;
+
+		ItemStack item = event.getHand() == EquipmentSlot.HAND
+				? event.getPlayer().getInventory().getItemInMainHand()
+				: event.getPlayer().getInventory().getItemInOffHand();
+		Material type = item.getType();
+		if (isDyeItem(type) || type == Material.SHEARS) {
 			event.setCancelled(true);
 		}
 	}
@@ -378,7 +407,9 @@ public class GlobalProtectionListener implements Listener {
 				|| type == Material.REPEATER
 				|| type == Material.DAYLIGHT_DETECTOR
 				|| type == Material.NOTE_BLOCK
-				|| type == Material.JUKEBOX;
+				|| type == Material.JUKEBOX
+				|| Tag.ITEMS_WOODEN_SHELVES.isTagged(type)
+				|| Tag.WOODEN_SHELVES.isTagged(type);
 	}
 
 	private boolean isVehicleItem(Material type) {
@@ -390,6 +421,10 @@ public class GlobalProtectionListener implements Listener {
 				|| type == Material.FURNACE_MINECART
 				|| type == Material.TNT_MINECART
 				|| type == Material.COMMAND_BLOCK_MINECART;
+	}
+
+	private boolean isDyeItem(Material type) {
+		return type.name().endsWith("_DYE");
 	}
 
 	private boolean isBoatItem(Material type) {

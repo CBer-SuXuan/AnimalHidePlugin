@@ -13,6 +13,7 @@ import java.util.List;
 public class ArenaTemplate {
 	private final String mapName;
 	private final String templateName; // 对应的 Slime 模板名
+	private final boolean queueRoom;
 	private final int minPlayers;
 	private final int maxPlayers;
 	private final int aiAnimalCount;
@@ -28,12 +29,13 @@ public class ArenaTemplate {
 	// 该地图独立的积分规则
 	private final ScoringConfig scoring;
 
-	public ArenaTemplate(String mapName, String templateName, int minPlayers, int maxPlayers,
+	public ArenaTemplate(String mapName, String templateName, boolean queueRoom, int minPlayers, int maxPlayers,
 	                     Location configWaitingLobby, Location configHiderSpawn, Location configSeekerSpawn,
 	                     List<SpawnPoint> configAiSpawns, BlockRegion configPhaseWall, int aiAnimalCount,
 	                     ScoringConfig scoring) {
 		this.mapName = mapName;
 		this.templateName = templateName;
+		this.queueRoom = queueRoom;
 		this.minPlayers = minPlayers;
 		this.maxPlayers = maxPlayers;
 		this.configWaitingLobby = configWaitingLobby;

@@ -3,6 +3,7 @@ package me.suxuan.animalhide.game.runtime;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.game.Arena;
+import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
 import me.suxuan.animalhide.game.ScoringConfig;
 import net.kyori.adventure.bossbar.BossBar;
@@ -83,10 +84,7 @@ public class MatchTimerService {
 			Player seeker = Bukkit.getPlayer(seekerId);
 			if (seeker == null) continue;
 
-			seeker.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.1);
-			seeker.getAttribute(Attribute.SNEAKING_SPEED).setBaseValue(0.3);
-			seeker.getAttribute(Attribute.JUMP_STRENGTH).setBaseValue(0.42);
-			seeker.removePotionEffect(PotionEffectType.BLINDNESS);
+			plugin.getGameManager().getRoleSetupService().applySeekerReleasedAttributes(seeker);
 
 			seeker.showTitle(Title.title(
 					Component.text("开始寻找！", NamedTextColor.RED),

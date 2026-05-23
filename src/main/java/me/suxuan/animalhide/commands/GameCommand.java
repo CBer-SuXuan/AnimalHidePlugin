@@ -32,6 +32,7 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 	public GameCommand(GameManager gameManager) {
 		register(new JoinSubCommand(gameManager));
 		register(new LeaveSubCommand(gameManager));
+		register(new AdminLeaveSubCommand(gameManager));
 		register(new ReloadSubCommand(gameManager));
 		register(new TutorialSubCommand());
 		register(new DebugSubCommand(gameManager));
@@ -46,6 +47,9 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
 	@Override
 	public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+		if (!canUseHideCommand(sender)) {
+			return true;
+		}
 		if (args.length == 0) {
 			sendHelp(sender);
 			return true;
@@ -69,6 +73,9 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
 	@Override
 	public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+		if (!canUseHideCommand(sender)) {
+			return Collections.emptyList();
+		}
 		if (args.length == 1) {
 			List<String> visibleNames = new ArrayList<>();
 			for (SubCommand sub : subCommands.values()) {
@@ -98,5 +105,9 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 			if (sub.getPermission() != null && !sender.hasPermission(sub.getPermission())) continue;
 			sender.sendMessage(Component.text(" • " + sub.getUsage(), NamedTextColor.AQUA));
 		}
+	}
+
+	private boolean canUseHideCommand(CommandSender sender) {
+		return sender.hasPermission("animalhide.admin.command");
 	}
 }

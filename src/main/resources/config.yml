@@ -13,6 +13,15 @@ features:
   # 是否启用躲藏者的一次性“伪装隐身”技能
   hider-disguise-invisibility: true
 
+queue:
+  enabled: true
+  template-name: "queue"
+  allow-normal-leave: false
+
+seeker:
+  pre-release-move-speed: 0.10
+  released-move-speed: 0.11
+
 # 主大厅
 main-lobby:
   world: "world"

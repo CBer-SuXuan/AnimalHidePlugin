@@ -1,5 +1,6 @@
 package me.suxuan.animalhide.game.runtime;
 
+import me.suxuan.animalhide.config.ConfigManager;
 import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.manager.DisguiseManager;
 import net.kyori.adventure.text.Component;
@@ -10,6 +11,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -23,13 +25,18 @@ import java.util.Random;
 
 public class RoleSetupService {
 
+	private static final double DEFAULT_SNEAK_SPEED = 0.3;
+	private static final double DEFAULT_JUMP_STRENGTH = 0.42;
+
 	public static final int MAX_SEEKER_LEVEL = 5;
 
 	private final DisguiseManager disguiseManager;
+	private final ConfigManager configManager;
 	private final Random random = new Random();
 
-	public RoleSetupService(DisguiseManager disguiseManager) {
+	public RoleSetupService(DisguiseManager disguiseManager, ConfigManager configManager) {
 		this.disguiseManager = disguiseManager;
+		this.configManager = configManager;
 	}
 
 	public void setupSeeker(Player seeker, Arena arena, int hideTimeTicks) {
@@ -40,11 +47,7 @@ public class RoleSetupService {
 		seeker.sendMessage(Component.text("你是寻找者！找出所有的动物！", NamedTextColor.RED));
 
 		equipSeeker(seeker, 0);
-
-		seeker.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0);
-		seeker.getAttribute(Attribute.SNEAKING_SPEED).setBaseValue(0);
-		seeker.getAttribute(Attribute.JUMP_STRENGTH).setBaseValue(0);
-		seeker.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, hideTimeTicks + 100, 1, false, false, false));
+		applySeekerPreReleaseAttributes(seeker);
 	}
 
 	public void setupHider(Player hider, Arena arena, List<String> allowedAnimals) {
@@ -61,6 +64,27 @@ public class RoleSetupService {
 
 		hider.sendMessage(Component.text("你是躲藏者！", NamedTextColor.GREEN));
 		equipHider(hider);
+	}
+
+	public void applySeekerPreReleaseAttributes(Player seeker) {
+		setAttributeBase(seeker, Attribute.MOVEMENT_SPEED, configManager.getSeekerPreReleaseMoveSpeed());
+		setAttributeBase(seeker, Attribute.SNEAKING_SPEED, DEFAULT_SNEAK_SPEED);
+		setAttributeBase(seeker, Attribute.JUMP_STRENGTH, DEFAULT_JUMP_STRENGTH);
+		seeker.removePotionEffect(PotionEffectType.BLINDNESS);
+	}
+
+	public void applySeekerReleasedAttributes(Player seeker) {
+		setAttributeBase(seeker, Attribute.MOVEMENT_SPEED, configManager.getSeekerReleasedMoveSpeed());
+		setAttributeBase(seeker, Attribute.SNEAKING_SPEED, DEFAULT_SNEAK_SPEED);
+		setAttributeBase(seeker, Attribute.JUMP_STRENGTH, DEFAULT_JUMP_STRENGTH);
+		seeker.removePotionEffect(PotionEffectType.BLINDNESS);
+	}
+
+	private void setAttributeBase(Player player, Attribute attribute, double value) {
+		AttributeInstance instance = player.getAttribute(attribute);
+		if (instance != null) {
+			instance.setBaseValue(value);
+		}
 	}
 
 	public static int seekerLevelOf(int kills) {

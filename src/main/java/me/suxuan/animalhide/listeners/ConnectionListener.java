@@ -8,7 +8,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Location;
-import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -52,8 +51,7 @@ public class ConnectionListener implements Listener {
 		Arena activeArena = gameManager.getArenaByPlayer(player);
 		if (activeArena != null) {
 			activeArena.removePlayer(player, false);
-			player.sendMessage(Component.text("你之前已离开对局，不会继续本局游戏，也不会结算本局奖励。", NamedTextColor.YELLOW));
-			return;
+			player.sendMessage(Component.text("你之前已离开房间，不会恢复到旧房间。", NamedTextColor.YELLOW));
 		}
 
 		for (Arena arena : gameManager.getActiveMatches()) {
@@ -83,9 +81,9 @@ public class ConnectionListener implements Listener {
 		if (mainLobby != null) {
 			player.teleportAsync(mainLobby);
 		}
-		
-		// 在玩家周围生成不死图腾爆发粒子特效
-		player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, player.getLocation().add(0, 1, 0), 100, 0.5, 1, 0.5, 0.1);
+
+		AnimalHidePlugin.getInstance().getServer().getScheduler().runTaskLater(AnimalHidePlugin.getInstance(), () ->
+				gameManager.autoJoinQueue(player), 2L);
 
 	}
 }
