@@ -34,6 +34,7 @@ public class ScoringConfig {
 	public static final String KEY_TAUNT_RISKY = "taunt-risky";
 	public static final String KEY_TAUNT_FIREWORK = "taunt-firework";
 	public static final String KEY_TAUNT_DANGEROUS = "taunt-dangerous";
+	public static final String KEY_SEEKER_PICKUP_POOP = "seeker-pickup-poop";
 
 	/**
 	 * 所有合法 key 列表，顺序即展示顺序，用于 list/tab 补全。
@@ -48,7 +49,8 @@ public class ScoringConfig {
 			KEY_TAUNT_SAFE,
 			KEY_TAUNT_RISKY,
 			KEY_TAUNT_FIREWORK,
-			KEY_TAUNT_DANGEROUS
+			KEY_TAUNT_DANGEROUS,
+			KEY_SEEKER_PICKUP_POOP
 	);
 
 	/**
@@ -68,6 +70,7 @@ public class ScoringConfig {
 		m.put(KEY_TAUNT_RISKY, 4);
 		m.put(KEY_TAUNT_FIREWORK, 7);
 		m.put(KEY_TAUNT_DANGEROUS, 10);
+		m.put(KEY_SEEKER_PICKUP_POOP, 1);
 		DEFAULTS = Map.copyOf(m);
 	}
 
@@ -88,6 +91,7 @@ public class ScoringConfig {
 		m.put(KEY_TAUNT_RISKY, "冒险嘲讽");
 		m.put(KEY_TAUNT_FIREWORK, "烟花嘲讽");
 		m.put(KEY_TAUNT_DANGEROUS, "危险嘲讽");
+		m.put(KEY_SEEKER_PICKUP_POOP, "寻找者拾取便便");
 		LABELS = Map.copyOf(m);
 	}
 
@@ -104,10 +108,11 @@ public class ScoringConfig {
 	private final int tauntRisky;
 	private final int tauntFirework;
 	private final int tauntDangerous;
+	private final int seekerPickupPoop;
 
 	private ScoringConfig(int seekerKillHider, int seekerWinOriginal, int seekerWinInfected,
 	                      int hiderWin, int hiderSurvivalReward, int hiderSurvivalInterval,
-	                      int tauntSafe, int tauntRisky, int tauntFirework, int tauntDangerous) {
+	                      int tauntSafe, int tauntRisky, int tauntFirework, int tauntDangerous, int seekerPickupPoop) {
 		this.seekerKillHider = seekerKillHider;
 		this.seekerWinOriginal = seekerWinOriginal;
 		this.seekerWinInfected = seekerWinInfected;
@@ -119,6 +124,7 @@ public class ScoringConfig {
 		this.tauntRisky = tauntRisky;
 		this.tauntFirework = tauntFirework;
 		this.tauntDangerous = tauntDangerous;
+		this.seekerPickupPoop = seekerPickupPoop;
 	}
 
 	/**
@@ -135,7 +141,8 @@ public class ScoringConfig {
 				DEFAULTS.get(KEY_TAUNT_SAFE),
 				DEFAULTS.get(KEY_TAUNT_RISKY),
 				DEFAULTS.get(KEY_TAUNT_FIREWORK),
-				DEFAULTS.get(KEY_TAUNT_DANGEROUS)
+				DEFAULTS.get(KEY_TAUNT_DANGEROUS),
+				DEFAULTS.get(KEY_SEEKER_PICKUP_POOP)
 		);
 	}
 
@@ -154,7 +161,8 @@ public class ScoringConfig {
 				section.getInt(KEY_TAUNT_SAFE, DEFAULTS.get(KEY_TAUNT_SAFE)),
 				section.getInt(KEY_TAUNT_RISKY, DEFAULTS.get(KEY_TAUNT_RISKY)),
 				section.getInt(KEY_TAUNT_FIREWORK, DEFAULTS.get(KEY_TAUNT_FIREWORK)),
-				section.getInt(KEY_TAUNT_DANGEROUS, DEFAULTS.get(KEY_TAUNT_DANGEROUS))
+				section.getInt(KEY_TAUNT_DANGEROUS, DEFAULTS.get(KEY_TAUNT_DANGEROUS)),
+				section.getInt(KEY_SEEKER_PICKUP_POOP, DEFAULTS.get(KEY_SEEKER_PICKUP_POOP))
 		);
 	}
 
@@ -180,6 +188,7 @@ public class ScoringConfig {
 			case KEY_TAUNT_RISKY -> tauntRisky;
 			case KEY_TAUNT_FIREWORK -> tauntFirework;
 			case KEY_TAUNT_DANGEROUS -> tauntDangerous;
+			case KEY_SEEKER_PICKUP_POOP -> seekerPickupPoop;
 			default -> null;
 		};
 	}

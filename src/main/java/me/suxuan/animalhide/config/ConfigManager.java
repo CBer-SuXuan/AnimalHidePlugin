@@ -95,6 +95,10 @@ public class ConfigManager {
 		return new SpawnPoint(loc, types, weight);
 	}
 
+	public boolean isHiderDisguiseInvisibilityEnabled() {
+		return mainConfig.getBoolean("features.hider-disguise-invisibility", true);
+	}
+
 	/**
 	 * 获取某个地图的 yml 文件句柄。
 	 *

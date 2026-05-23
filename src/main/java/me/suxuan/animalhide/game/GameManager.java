@@ -3,26 +3,20 @@ package me.suxuan.animalhide.game;
 import lombok.Getter;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.config.ConfigManager;
-import me.suxuan.animalhide.manager.DatabaseManager;
+import me.suxuan.animalhide.game.runtime.LobbyCountdownService;
+import me.suxuan.animalhide.game.runtime.MatchResultService;
+import me.suxuan.animalhide.game.runtime.MatchTimerService;
+import me.suxuan.animalhide.game.runtime.PlayerStateService;
+import me.suxuan.animalhide.game.runtime.RoleConversionService;
+import me.suxuan.animalhide.game.runtime.RoleSetupService;
 import me.suxuan.animalhide.manager.DisguiseManager;
 import me.suxuan.slimearena.api.ArenaManager;
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
-import net.kyori.adventure.title.Title;
 import org.bukkit.*;
-import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 
-import java.time.Duration;
 import java.util.*;
 
 /**
@@ -36,6 +30,12 @@ public class GameManager {
 	private final DisguiseManager disguiseManager;
 	private final ArenaManager slimeArenaManager;
 	private final Location mainLobby;
+	private final PlayerStateService playerStateService;
+	private final MatchResultService matchResultService;
+	private final LobbyCountdownService lobbyCountdownService;
+	private final MatchTimerService matchTimerService;
+	private final RoleSetupService roleSetupService;
+	private final RoleConversionService roleConversionService;
 
 	@Getter
 	private final Map<String, ArenaTemplate> templates = new HashMap<>();
@@ -48,6 +48,12 @@ public class GameManager {
 		this.disguiseManager = disguiseManager;
 		this.slimeArenaManager = slimeArenaManager;
 		this.mainLobby = configManager.getLocation(configManager.getMainConfig().getConfigurationSection("main-lobby"));
+		this.playerStateService = new PlayerStateService(plugin, configManager, disguiseManager, mainLobby);
+		this.matchResultService = new MatchResultService(plugin, playerStateService);
+		this.lobbyCountdownService = new LobbyCountdownService(plugin, configManager, this::startGame);
+		this.matchTimerService = new MatchTimerService(plugin, configManager, arena -> endGame(arena, PlayerRole.HIDER));
+		this.roleSetupService = new RoleSetupService(disguiseManager);
+		this.roleConversionService = new RoleConversionService(plugin, disguiseManager, roleSetupService, this::endGame);
 		loadTemplates();
 	}
 
@@ -236,174 +242,21 @@ public class GameManager {
 	 * 检查房间是否满足启动条件，如果满足则开始倒计时；已在倒计时时根据人数刷新模式
 	 */
 	public void checkAndStartCountdown(Arena arena) {
-		if (arena.getState() == GameState.WAITING && arena.getPlayers().size() >= arena.getMinPlayers()) {
-			arena.setState(GameState.STARTING);
-			beginLobbyCountdown(arena);
-		} else if (arena.getState() == GameState.STARTING) {
-			refreshLobbyCountdown(arena);
-		}
+		lobbyCountdownService.checkAndStartCountdown(arena);
 	}
 
 	/**
 	 * 人数变化时刷新大厅倒计时（取消、切换长/短倒计时）
 	 */
 	public void refreshLobbyCountdown(Arena arena) {
-		if (arena.getState() != GameState.STARTING) return;
-
-		int size = arena.getPlayers().size();
-		if (size < arena.getMinPlayers()) {
-			cancelLobbyCountdown(arena);
-			arena.setState(GameState.WAITING);
-			arena.setTimeLeft(0);
-			arena.broadcast(Component.text("人数不足，取消倒计时...", NamedTextColor.RED));
-			return;
-		}
-
-		boolean fast = shouldUseFastLobbyCountdown(arena);
-		if (fast == arena.isLobbyFastCountdown() && arena.getLobbyCountdownTask() != null) {
-			return;
-		}
-
-		if (fast) {
-			int pct = (int) Math.round(getFastStartPercent(arena) * 100);
-			arena.broadcast(Component.text("房间人数已达上限的 " + pct + "%，", NamedTextColor.GOLD)
-					.append(Component.text(getFastCountdownSeconds(arena) + " 秒后开始游戏！", NamedTextColor.GREEN)));
-		} else if (arena.isLobbyFastCountdown()) {
-			arena.broadcast(Component.text("人数下降，重新进入 ", NamedTextColor.YELLOW)
-					.append(Component.text(getCountdownSeconds(arena) + " 秒", NamedTextColor.AQUA))
-					.append(Component.text(" 等待倒计时...", NamedTextColor.YELLOW)));
-		}
-		restartLobbyCountdown(arena, fast);
-	}
-
-	private void beginLobbyCountdown(Arena arena) {
-		boolean fast = shouldUseFastLobbyCountdown(arena);
-		if (fast) {
-			int pct = (int) Math.round(getFastStartPercent(arena) * 100);
-			arena.broadcast(Component.text("房间人数已达上限的 " + pct + "%，", NamedTextColor.GOLD)
-					.append(Component.text(getFastCountdownSeconds(arena) + " 秒后开始游戏！", NamedTextColor.GREEN)));
-		} else {
-			arena.broadcast(Component.text("已达到最少人数，游戏将在 ", NamedTextColor.GREEN)
-					.append(Component.text(formatLobbyDuration(getCountdownSeconds(arena)), NamedTextColor.AQUA))
-					.append(Component.text(" 后开始", NamedTextColor.GREEN)));
-		}
-		restartLobbyCountdown(arena, fast);
-	}
-
-	private void restartLobbyCountdown(Arena arena, boolean fast) {
-		cancelLobbyCountdown(arena);
-		arena.setLobbyFastCountdown(fast);
-		int totalSeconds = fast ? getFastCountdownSeconds(arena) : getCountdownSeconds(arena);
-
-		BukkitTask task = new BukkitRunnable() {
-			int countdown = totalSeconds;
-
-			@Override
-			public void run() {
-				if (arena.getState() != GameState.STARTING) {
-					cancel();
-					return;
-				}
-				if (arena.getPlayers().size() < arena.getMinPlayers()) {
-					Bukkit.getScheduler().runTask(plugin, () -> refreshLobbyCountdown(arena));
-					cancel();
-					return;
-				}
-
-				boolean wantFast = shouldUseFastLobbyCountdown(arena);
-				if (wantFast != arena.isLobbyFastCountdown()) {
-					Bukkit.getScheduler().runTask(plugin, () -> refreshLobbyCountdown(arena));
-					cancel();
-					return;
-				}
-
-				if (countdown > 0) {
-					arena.setTimeLeft(countdown);
-					maybeShowLobbyCountdownTitle(arena, countdown, fast);
-					countdown--;
-				} else {
-					arena.setLobbyCountdownTask(null);
-					startGame(arena);
-					cancel();
-				}
-			}
-		}.runTaskTimer(plugin, 0L, 20L);
-		arena.setLobbyCountdownTask(task);
-	}
-
-	private void maybeShowLobbyCountdownTitle(Arena arena, int secondsLeft, boolean fast) {
-		boolean showEverySecond = fast || secondsLeft <= 10;
-		boolean showMilestone = !fast && secondsLeft > 10 && (secondsLeft % 30 == 0 || secondsLeft == getCountdownSeconds(arena));
-		if (!showEverySecond && !showMilestone) return;
-
-		Component main = showEverySecond
-				? Component.text(secondsLeft, NamedTextColor.AQUA)
-				: Component.text(formatLobbyDuration(secondsLeft), NamedTextColor.AQUA);
-		Component sub = fast
-				? Component.text("即将开始", NamedTextColor.YELLOW)
-				: Component.text("游戏即将开始", NamedTextColor.YELLOW);
-
-		Title title = Title.title(main, sub,
-				Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(1), Duration.ofMillis(200)));
-		for (UUID uuid : arena.getPlayers()) {
-			Player p = Bukkit.getPlayer(uuid);
-			if (p != null) p.showTitle(title);
-		}
-	}
-
-	private void cancelLobbyCountdown(Arena arena) {
-		BukkitTask task = arena.getLobbyCountdownTask();
-		if (task != null) {
-			task.cancel();
-			arena.setLobbyCountdownTask(null);
-		}
-		arena.setLobbyFastCountdown(false);
-	}
-
-	private boolean shouldUseFastLobbyCountdown(Arena arena) {
-		int threshold = getFastStartThreshold(arena);
-		return arena.getPlayers().size() >= threshold;
-	}
-
-	private int getFastStartThreshold(Arena arena) {
-		double percent = getFastStartPercent(arena);
-		int threshold = (int) Math.ceil(arena.getMaxPlayers() * percent);
-		return Math.max(arena.getMinPlayers(), Math.min(threshold, arena.getMaxPlayers()));
-	}
-
-	private int getCountdownSeconds(Arena arena) {
-		return Math.max(1, configManager.getArenaConfigs()
-				.get(arena.getArenaName())
-				.getInt("settings.countdown-seconds", 120));
-	}
-
-	private int getFastCountdownSeconds(Arena arena) {
-		return Math.max(1, configManager.getArenaConfigs()
-				.get(arena.getArenaName())
-				.getInt("settings.fast-countdown-seconds", 20));
-	}
-
-	private double getFastStartPercent(Arena arena) {
-		return Math.clamp(configManager.getArenaConfigs()
-				.get(arena.getArenaName())
-				.getDouble("settings.fast-start-percent", 0.8), 0.0, 1.0);
-	}
-
-	private static String formatLobbyDuration(int seconds) {
-		if (seconds >= 60 && seconds % 60 == 0) {
-			return (seconds / 60) + " 分钟";
-		}
-		if (seconds >= 60) {
-			return (seconds / 60) + " 分 " + (seconds % 60) + " 秒";
-		}
-		return seconds + " 秒";
+		lobbyCountdownService.refreshLobbyCountdown(arena);
 	}
 
 	/**
 	 * 游戏正式开始：分配阵营，传送玩家，设置变身
 	 */
 	private void startGame(Arena arena) {
-		cancelLobbyCountdown(arena);
+		lobbyCountdownService.cancelLobbyCountdown(arena);
 		arena.setState(GameState.PLAYING);
 
 		int animalVotes = arena.getModeVoteCount(ArenaMode.ANIMAL);
@@ -470,7 +323,7 @@ public class GameManager {
 			if (seeker != null) {
 				arena.getSeekers().add(seekerUUID);
 				arena.getOriginalSeekers().add(seekerUUID);
-				setupSeeker(seeker, arena, hideTimeTicks);
+				roleSetupService.setupSeeker(seeker, arena, hideTimeTicks);
 			}
 		}
 
@@ -484,47 +337,30 @@ public class GameManager {
 			Player hider = Bukkit.getPlayer(hiderId);
 			if (hider != null) {
 				arena.getHiders().add(hiderId);
-				setupHider(hider, arena, allowedEntities);
+				roleSetupService.setupHider(hider, arena, allowedEntities);
 			}
 		}
 
-		startHidePhaseTask(arena, hideTime);
-	}
-
-	private void setupSeeker(Player seeker, Arena arena, int hideTimeTicks) {
-		seeker.teleportAsync(arena.getSeekerSpawn());
-		seeker.setFoodLevel(20);
-		seeker.setSaturation(20f);
-		seeker.sendMessage(Component.text("你是寻找者！找出所有的动物！", NamedTextColor.RED));
-
-		// 初始装备 = 1 级寻找者
-		equipSeeker(seeker, 0);
-
-		seeker.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0);
-		seeker.getAttribute(Attribute.SNEAKING_SPEED).setBaseValue(0);
-		seeker.getAttribute(Attribute.JUMP_STRENGTH).setBaseValue(0);
-		seeker.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, hideTimeTicks + 100, 1, false, false, false));
+		matchTimerService.startHidePhaseTask(arena, hideTime);
 	}
 
 	/**
 	 * 寻找者击杀升级系统的最高等级（含 L1 起始等级）。
 	 */
-	public static final int MAX_SEEKER_LEVEL = 5;
+	public static final int MAX_SEEKER_LEVEL = RoleSetupService.MAX_SEEKER_LEVEL;
 
 	/**
 	 * 把击杀数换算成寻找者等级（每杀 1 只升 1 级，封顶 {@link #MAX_SEEKER_LEVEL}）。
 	 */
 	public static int seekerLevelOf(int kills) {
-		return Math.min(MAX_SEEKER_LEVEL, kills + 1);
+		return RoleSetupService.seekerLevelOf(kills);
 	}
 
 	/**
 	 * 升到下一级所需的累计击杀数；已经满级返回 -1。
 	 */
 	public static int killsForNextLevel(int kills) {
-		int level = seekerLevelOf(kills);
-		if (level >= MAX_SEEKER_LEVEL) return -1;
-		return level; // L1→L2 需要 1 杀，L2→L3 需要 2 杀，依此类推（即等于当前 level）
+		return RoleSetupService.killsForNextLevel(kills);
 	}
 
 	/**
@@ -540,61 +376,7 @@ public class GameManager {
 	 * </ul>
 	 */
 	public void equipSeeker(Player seeker, int kills) {
-		int level = seekerLevelOf(kills);
-
-		seeker.getInventory().clear();
-
-		// 石剑：永久无法破坏 + 至少击退 I，让动物有逃跑窗口
-		ItemStack sword = new ItemStack(Material.STONE_SWORD);
-		ItemMeta swordMeta = sword.getItemMeta();
-		swordMeta.setUnbreakable(true);
-		int knockback = (level >= 5) ? 2 : 1;
-		swordMeta.addEnchant(org.bukkit.enchantments.Enchantment.KNOCKBACK, knockback, true);
-		if (level >= 2) {
-			int sharpness = Math.min(3, level - 1); // L2:I  L3:II  L4:III  L5:III
-			swordMeta.addEnchant(org.bukkit.enchantments.Enchantment.SHARPNESS, sharpness, true);
-		}
-		swordMeta.displayName(Component.text("★ 寻找者佩剑 [Lv." + level + "] ★", NamedTextColor.RED)
-				.decoration(TextDecoration.ITALIC, false));
-		sword.setItemMeta(swordMeta);
-		seeker.getInventory().setItem(0, sword);
-
-		// 弓：永久无法破坏 + 无限箭矢，随等级附魔
-		ItemStack bow = new ItemStack(Material.BOW);
-		ItemMeta bowMeta = bow.getItemMeta();
-		bowMeta.setUnbreakable(true);
-		bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.INFINITY, 1, true);
-		if (level >= 3) {
-			int power = (level >= 5) ? 3 : (level - 2); // L3:I  L4:II  L5:III
-			bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.POWER, power, true);
-		}
-		if (level >= 5) {
-			bowMeta.addEnchant(org.bukkit.enchantments.Enchantment.PUNCH, 1, true);
-		}
-		bowMeta.displayName(Component.text("★ 寻找者之弓 [Lv." + level + "] ★", NamedTextColor.RED)
-				.decoration(TextDecoration.ITALIC, false));
-		bow.setItemMeta(bowMeta);
-		seeker.getInventory().setItem(1, bow);
-
-		ItemStack sheepTrap = new ItemStack(Material.SHEEP_SPAWN_EGG);
-		ItemMeta trapMeta = sheepTrap.getItemMeta();
-		trapMeta.displayName(Component.text("★ 爆炸绵羊 (右键释放) ★", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
-		trapMeta.lore(List.of(
-				Component.text("释放一只会爆炸的绵羊，清理周围的 AI 并伤害玩家！", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("冷却时间: 20 秒", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
-		));
-		sheepTrap.setItemMeta(trapMeta);
-		seeker.getInventory().setItem(2, sheepTrap);
-
-		seeker.getInventory().setItem(9, new ItemStack(Material.ARROW, 1));
-
-		// L3 起永久速度 I，L5 永久力量 I（用 Integer.MAX_VALUE 保持整局有效）
-		if (level >= 3) {
-			seeker.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false, false));
-		}
-		if (level >= 5) {
-			seeker.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, Integer.MAX_VALUE, 0, false, false, false));
-		}
+		roleSetupService.equipSeeker(seeker, kills);
 	}
 
 	/**
@@ -602,294 +384,14 @@ public class GameManager {
 	 * 调用约定：必须在 {@link Arena#addMatchKill(UUID)} 之后调用，使用最新的 matchKills 数。
 	 */
 	public void applySeekerLevelUp(Player seeker, Arena arena) {
-		int kills = arena.getMatchKills(seeker.getUniqueId());
-		int newLevel = seekerLevelOf(kills);
-		int oldLevel = seekerLevelOf(kills - 1);
-
-		// 击杀后短暂回血，避免血量被磨光后无法继续抓
-		seeker.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 100, 1, false, false, false));
-
-		equipSeeker(seeker, kills);
-
-		if (newLevel > oldLevel) {
-			// 真正升级了：放升级动效
-			seeker.playSound(seeker.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.4f);
-			seeker.showTitle(Title.title(
-					Component.text("Lv." + oldLevel + " → Lv." + newLevel, NamedTextColor.GOLD),
-					newLevel >= MAX_SEEKER_LEVEL
-							? Component.text("⚔ 寻找者已满级！", NamedTextColor.RED)
-							: Component.text("⚔ 寻找者升级！装备已强化", NamedTextColor.YELLOW),
-					Title.Times.times(Duration.ofMillis(150), Duration.ofSeconds(2), Duration.ofMillis(300))
-			));
-		}
+		roleSetupService.applySeekerLevelUp(seeker, arena);
 	}
 
 	/**
 	 * 通用的击杀结算逻辑：处理躲藏者被发现并转化为寻找者
 	 */
 	public void processHiderFound(Arena arena, Player victim, Player seeker) {
-		if (!arena.getHiders().contains(victim.getUniqueId())) return;
-
-		arena.broadcast(Component.text("☠ ", NamedTextColor.GRAY)
-				.append(Component.text(victim.getName(), NamedTextColor.RED))
-				.append(Component.text(" 被 ", NamedTextColor.GRAY))
-				.append(Component.text(seeker.getName(), NamedTextColor.AQUA))
-				.append(Component.text(" 找到了！", NamedTextColor.GRAY)));
-
-		arena.getHiders().remove(victim.getUniqueId());
-		plugin.getDecoyManager().clear(victim, arena);
-		arena.getSeekers().add(victim.getUniqueId());
-
-		int killScore = arena.getTemplate().getScoring().getSeekerKillHider();
-		arena.addMatchScore(seeker.getUniqueId(), killScore); // 击杀得分，由该地图 scoring 配置决定
-		arena.addMatchKill(seeker.getUniqueId()); // 记录 1 次击杀
-		seeker.sendMessage(Component.text("击杀躲藏者！积分 +" + killScore, NamedTextColor.GREEN));
-
-		// 击杀升级：刷新装备 + 升级动效（必须在 addMatchKill 之后）
-		applySeekerLevelUp(seeker, arena);
-
-		// 恢复状态并传送
-		victim.setHealth(20.0);
-		victim.setFoodLevel(20);
-		victim.setSaturation(20f);
-		disguiseManager.undisguisePlayer(victim);
-		victim.teleportAsync(arena.getSeekerSpawn());
-		victim.sendMessage(Component.text("你已经被发现！现在你加入了寻找者阵营！", NamedTextColor.YELLOW));
-
-		// 给新变身的寻找者发 1 级装备（被感染者从头开始升级）
-		equipSeeker(victim, 0);
-
-		// 检查游戏是否结束
-		if (arena.getHiders().isEmpty()) {
-			endGame(arena, PlayerRole.SEEKER);
-		}
-	}
-
-	private void setupHider(Player hider, Arena arena, List<String> allowedAnimals) {
-		hider.teleportAsync(arena.getHiderSpawn());
-		hider.setFoodLevel(20);
-		hider.setSaturation(0f);
-
-		List<Entity> aiList = arena.getAiAnimals();
-		if (!aiList.isEmpty()) {
-			Entity randomAi = aiList.get(new Random().nextInt(aiList.size()));
-			disguiseManager.disguisePlayerAsEntity(hider, randomAi);
-		}
-
-		hider.sendMessage(Component.text("你是躲藏者！", NamedTextColor.GREEN));
-
-		equipHider(hider);
-	}
-
-	/**
-	 * 为躲藏者发放专属装备
-	 */
-	private void equipHider(Player hider) {
-		// 1. 变身魔杖 (第 1 格，索引 0)
-		ItemStack wand = new ItemStack(Material.BLAZE_ROD);
-		ItemMeta wandMeta = wand.getItemMeta();
-		wandMeta.displayName(Component.text("★ 变身魔杖 (右键生物) ★", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
-		wand.setItemMeta(wandMeta);
-		hider.getInventory().setItem(0, wand);
-
-		// 2. 定点伪装 (第 3 格，索引 2)
-		ItemStack decoyItem = new ItemStack(Material.LEAD);
-		ItemMeta decoyMeta = decoyItem.getItemMeta();
-		decoyMeta.displayName(Component.text("▶ 定点伪装 (右键切换) ◀", NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.ITALIC, false));
-		decoyMeta.lore(List.of(
-				Component.text("锁定当前位置与朝向，可转动视角", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("仅可在站立于地面时使用", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("期间无法移动或射箭，可使用嘲讽", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-		));
-		decoyItem.setItemMeta(decoyMeta);
-		hider.getInventory().setItem(2, decoyItem);
-
-		// 3. 击退弓 (第 2 格，索引 1)
-		ItemStack bow = new ItemStack(Material.BOW);
-		ItemMeta bowMeta = bow.getItemMeta();
-		// 新增：给弓加上炫酷的名字，提示玩家可以通过射击升级
-		bowMeta.displayName(Component.text("★ 击退弓 (射击寻找者升级) ★", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-		bowMeta.setUnbreakable(true);
-		bow.setItemMeta(bowMeta);
-		hider.getInventory().setItem(1, bow);
-
-		// 3. 安全嘲讽 (第 4 格，索引 3)
-		ItemStack safeTaunt = new ItemStack(Material.PINK_DYE);
-		ItemMeta safeMeta = safeTaunt.getItemMeta();
-		safeMeta.displayName(Component.text("▶ 安全嘲讽 (CD: 5秒) ◀", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
-		safeTaunt.setItemMeta(safeMeta);
-		hider.getInventory().setItem(3, safeTaunt);
-
-		// 4. 冒险嘲讽 (第 5 格，索引 4)
-		ItemStack modTaunt = new ItemStack(Material.GLOWSTONE_DUST);
-		ItemMeta modMeta = modTaunt.getItemMeta();
-		modMeta.displayName(Component.text("▶ 冒险嘲讽 (CD: 15秒) ◀", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-		modTaunt.setItemMeta(modMeta);
-		hider.getInventory().setItem(4, modTaunt);
-
-		// 5. 烟花嘲讽 (第 6 格，索引 5)
-		ItemStack fwTaunt = new ItemStack(Material.FIREWORK_ROCKET, 5);
-		ItemMeta fwMeta = fwTaunt.getItemMeta();
-		fwMeta.displayName(Component.text("▶ 烟花嘲讽 (CD: 15秒 | 限5次) ◀", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
-		fwTaunt.setItemMeta(fwMeta);
-		hider.getInventory().setItem(5, fwTaunt);
-
-		// 6. 危险嘲讽 (第 7 格，索引 6)
-		ItemStack dangTaunt = new ItemStack(Material.REDSTONE_TORCH);
-		ItemMeta dangMeta = dangTaunt.getItemMeta();
-		dangMeta.displayName(Component.text("▶ 危险嘲讽 (CD: 60秒) ◀", NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false));
-		dangTaunt.setItemMeta(dangMeta);
-		hider.getInventory().setItem(6, dangTaunt);
-
-		// 7. 箭 x5 (第 9 格，索引 8)
-		hider.getInventory().setItem(8, new ItemStack(Material.ARROW, 5));
-	}
-
-	/**
-	 * 躲藏阶段倒计时任务
-	 */
-	private void startHidePhaseTask(Arena arena, int hideTimeSeconds) {
-		new BukkitRunnable() {
-			int timeLeft = hideTimeSeconds;
-
-			@Override
-			public void run() {
-				if (arena.getState() != GameState.PLAYING) {
-					cancel();
-					return;
-				}
-
-				if (timeLeft > 0) {
-					arena.setTimeLeft(timeLeft);
-					// 动态更新两方阵营的 Action Bar 提示
-					Component seekerText = Component.text("距离释放还有: " + timeLeft + " 秒", NamedTextColor.RED);
-					for (UUID id : arena.getSeekers()) {
-						Player p = Bukkit.getPlayer(id);
-						if (p != null) p.sendActionBar(seekerText);
-					}
-
-					Component hiderText = Component.text("寻找者将在 " + timeLeft + " 秒后出动！", NamedTextColor.YELLOW);
-					for (UUID id : arena.getHiders()) {
-						Player p = Bukkit.getPlayer(id);
-						if (p != null) p.sendActionBar(hiderText);
-					}
-
-					timeLeft--;
-				} else {
-					arena.openPhaseDoors();
-					arena.broadcast(Component.text("⚔ 寻找者已出动！", NamedTextColor.DARK_RED));
-
-					for (UUID seekerId : arena.getSeekers()) {
-						Player s = Bukkit.getPlayer(seekerId);
-						if (s != null) {
-
-							s.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.1);
-							s.getAttribute(Attribute.SNEAKING_SPEED).setBaseValue(0.3);
-							s.getAttribute(Attribute.JUMP_STRENGTH).setBaseValue(0.42);
-							s.removePotionEffect(PotionEffectType.BLINDNESS);
-
-							// 屏幕中心大字警告
-							s.showTitle(Title.title(
-									Component.text("开始寻找！", NamedTextColor.RED),
-									Component.text("找出所有动物！", NamedTextColor.YELLOW),
-									Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(200))
-							));
-						}
-					}
-
-					cancel();
-
-					int gameDuration = configManager.getArenaConfigs()
-							.get(arena.getArenaName())
-							.getInt("settings.game-duration", 300); // 默认 300 秒 (5分钟)
-
-					startGameTimer(arena, gameDuration);
-				}
-			}
-		}.runTaskTimer(plugin, 0L, 20L); // 每秒运行一次
-	}
-
-	/**
-	 * 游戏主阶段倒计时任务
-	 * 使用 BossBar 在屏幕上方显示剩余时间
-	 */
-	private void startGameTimer(Arena arena, int durationSeconds) {
-
-		BossBar timeBar = BossBar.bossBar(
-				Component.text("⏳ 游戏剩余时间: " + durationSeconds + " 秒", NamedTextColor.WHITE),
-				1.0f,
-				BossBar.Color.RED,
-				BossBar.Overlay.PROGRESS
-		);
-
-		arena.setTimeBar(timeBar);
-		for (UUID uuid : arena.getPlayers()) {
-			Player p = Bukkit.getPlayer(uuid);
-			if (p != null) p.showBossBar(timeBar);
-		}
-
-		ScoringConfig scoring = arena.getTemplate().getScoring();
-		int survivalReward = scoring.getHiderSurvivalReward();
-		int survivalInterval = scoring.getHiderSurvivalInterval();
-
-		new BukkitRunnable() {
-			int timeLeft = durationSeconds;
-
-			@Override
-			public void run() {
-				if (arena.getState() != GameState.PLAYING) {
-					cancel();
-					return;
-				}
-
-				if (timeLeft > 0) {
-					arena.setTimeLeft(timeLeft);
-					float progress = (float) timeLeft / durationSeconds;
-					timeBar.progress(progress);
-
-					if (timeLeft <= 30) {
-						timeBar.name(Component.text("⏳ 游戏剩余时间: " + timeLeft + " 秒", NamedTextColor.RED));
-					} else {
-						timeBar.name(Component.text("⏳ 游戏剩余时间: " + timeLeft + " 秒", NamedTextColor.WHITE));
-					}
-
-					// Bug 修复：首 tick 的 timeLeft == durationSeconds，若周期能整除（如 300 % 15 == 0）
-					// 会立刻给躲藏者发一次潜行奖励——但寻找者还没出动。
-					// 用 elapsed 代替 timeLeft 取模，并且 elapsed > 0 才发，杜绝零秒奖励。
-					int elapsed = durationSeconds - timeLeft;
-					if (survivalReward > 0 && elapsed > 0 && elapsed % survivalInterval == 0) {
-						for (UUID hiderId : arena.getHiders()) {
-							arena.addMatchScore(hiderId, survivalReward);
-							Player hider = Bukkit.getPlayer(hiderId);
-							if (hider != null) {
-								hider.sendActionBar(Component.text("✔ 潜行存活奖励: 积分 +" + survivalReward, NamedTextColor.GREEN));
-							}
-						}
-					}
-
-					// 箭矢回补复用 elapsed，避免和潜行奖励一样的首秒触发问题
-					if (elapsed > 0 && elapsed % 5 == 0) {
-						for (UUID hiderId : arena.getHiders()) {
-							Player hider = Bukkit.getPlayer(hiderId);
-							if (hider != null) {
-								ItemStack arrowItem = hider.getInventory().getItem(8);
-
-								if (arrowItem == null || arrowItem.getType() == Material.AIR) {
-									hider.getInventory().setItem(8, new ItemStack(Material.ARROW, 1));
-								} else if (arrowItem.getType() == Material.ARROW && arrowItem.getAmount() < 5) {
-									arrowItem.setAmount(arrowItem.getAmount() + 1);
-								}
-							}
-						}
-					}
-
-					timeLeft--;
-				} else {
-					endGame(arena, PlayerRole.HIDER);
-					cancel();
-				}
-			}
-		}.runTaskTimer(plugin, 0L, 20L);
+		roleConversionService.processHiderFound(arena, victim, seeker);
 	}
 
 	/**
@@ -899,89 +401,16 @@ public class GameManager {
 	 * @param winner 获胜的阵营
 	 */
 	public void endGame(Arena arena, PlayerRole winner) {
-		arena.openPhaseDoors();
-		arena.setState(GameState.ENDING);
-
-		boolean adminShutdown = winner == PlayerRole.SPECTATOR;
-		Set<UUID> winners = Collections.emptySet();
-		if (!adminShutdown) {
-			winners = (winner == PlayerRole.SEEKER) ? arena.getSeekers() : arena.getHiders();
-			ScoringConfig scoring = arena.getTemplate().getScoring();
-			if (winner == PlayerRole.SEEKER) {
-				for (UUID u : arena.getSeekers()) {
-					if (arena.getOriginalSeekers().contains(u)) {
-						arena.addMatchScore(u, scoring.getSeekerWinOriginal());
-					} else {
-						arena.addMatchScore(u, scoring.getSeekerWinInfected());
-					}
-				}
-			} else {
-				for (UUID u : arena.getHiders()) {
-					arena.addMatchScore(u, scoring.getHiderWin());
-				}
-			}
-		}
-
-		arena.broadcast(Component.text("=========================", NamedTextColor.YELLOW));
-		if (adminShutdown) {
-			arena.broadcast(Component.text("      游戏已由管理员结束", NamedTextColor.GRAY));
-		} else {
-			String winnerMsg = winner == PlayerRole.SEEKER ? "§c寻找者" : "§a躲藏者";
-			arena.broadcast(Component.text("      游戏结束！ " + winnerMsg + " 获得了胜利！", NamedTextColor.GOLD));
-		}
-		arena.broadcast(Component.text(""));
-
-		if (!adminShutdown) {
-			List<Map.Entry<UUID, Integer>> sortedScores = new ArrayList<>(arena.getMatchScores().entrySet());
-			sortedScores.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-
-			arena.broadcast(Component.text("      【本局积分排行】", NamedTextColor.AQUA));
-			for (int i = 0; i < Math.min(3, sortedScores.size()); i++) {
-				UUID u = sortedScores.get(i).getKey();
-				int score = sortedScores.get(i).getValue();
-				Player p = Bukkit.getPlayer(u);
-				String name = p != null ? p.getName() : "离线玩家";
-
-				String rankColor = i == 0 ? "§6① " : (i == 1 ? "§e② " : "§7③ ");
-				arena.broadcast(Component.text("      " + rankColor + name + " §f- §a" + score + " 分"));
-			}
-			arena.broadcast(Component.text("=========================", NamedTextColor.YELLOW));
-
-			DatabaseManager db = AnimalHidePlugin.getInstance().getDatabaseManager();
-			for (UUID uuid : arena.getPlayers()) {
-				Player p = Bukkit.getPlayer(uuid);
-				if (p == null) continue;
-				int scoreEarned = arena.getMatchScores().getOrDefault(uuid, 0);
-				int killsEarned = arena.getMatchKills(uuid);
-				int winEarned = winners.contains(uuid) ? 1 : 0;
-
-				db.addStatsAsync(uuid, p.getName(), scoreEarned, winEarned, killsEarned);
-				p.sendMessage(Component.text("已结算入库：+" + scoreEarned + " 总积分", NamedTextColor.GRAY));
-			}
-		} else {
-			arena.broadcast(Component.text("      本局为管理员结束，不结算积分与胜场", NamedTextColor.GRAY));
-			arena.broadcast(Component.text("=========================", NamedTextColor.YELLOW));
-		}
-
-		for (UUID uuid : arena.getPlayers()) {
-			Player player = Bukkit.getPlayer(uuid);
-			if (player == null) continue;
-			resetPlayerData(player, arena);
-			AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
-			if (adminShutdown) {
-				player.sendMessage(Component.text("本局已由管理员结束，未写入积分与胜场。", NamedTextColor.GRAY));
-			}
-		}
-
-		destroyArenaMatch(arena);
+		matchResultService.endGame(arena, winner, this::destroyArenaMatch);
 	}
 
 	/**
 	 * 彻底销毁一个对局及其对应的 Slime 世界
 	 */
 	public void destroyArenaMatch(Arena match) {
+		plugin.getTauntTraceSupport().clearArena(match);
 		match.openPhaseDoors();
-		cancelLobbyCountdown(match);
+		lobbyCountdownService.cancelLobbyCountdown(match);
 		// 1. 从活跃对局列表中移除，停止一切该房间的业务逻辑
 		activeMatches.remove(match);
 		World oldWorld = match.getCurrentWorld();
@@ -1045,29 +474,7 @@ public class GameManager {
 	 * 紧急清理：用于服务器关闭或插件重载时，强制清理所有玩家状态
 	 */
 	public void emergencyCleanup() {
-		Location mainLobby = configManager.getLocation(configManager.getMainConfig().getConfigurationSection("main-lobby"));
-
-		for (Arena arena : new ArrayList<>(activeMatches)) {
-			if (arena.getState() != GameState.WAITING) {
-				for (UUID uuid : arena.getPlayers()) {
-					Player player = org.bukkit.Bukkit.getPlayer(uuid);
-					if (player != null) {
-						disguiseManager.undisguisePlayer(player);
-
-						player.getInventory().clear();
-						player.setHealth(20.0);
-						player.setFoodLevel(20);
-						player.setFireTicks(0);
-						player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
-
-						if (mainLobby != null) {
-							player.teleport(mainLobby);
-						}
-					}
-				}
-				destroyArenaMatch(arena);
-			}
-		}
+		playerStateService.emergencyCleanup(activeMatches, this::destroyArenaMatch);
 	}
 
 	/**
@@ -1086,38 +493,11 @@ public class GameManager {
 	}
 
 	public void resetPlayerData(Player player, Arena arena) {
-		if (player != null) {
-			resetPlayerDataWithoutLobby(player, arena);
-
-			if (mainLobby != null) {
-				player.teleportAsync(mainLobby);
-			}
-		}
+		playerStateService.resetPlayerData(player, arena);
 	}
 
 	public void resetPlayerDataWithoutLobby(Player player, Arena arena) {
-		if (player != null) {
-			if (arena.getTimeBar() != null)
-				player.hideBossBar(arena.getTimeBar());
-
-			plugin.getDecoyManager().clear(player, arena);
-			if (me.libraryaddict.disguise.DisguiseAPI.isDisguised(player)) {
-				me.libraryaddict.disguise.DisguiseAPI.undisguiseToAll(player);
-			}
-			disguiseManager.resetMovement(player);
-
-			player.setAllowFlight(false);
-			player.setFlying(false);
-
-			player.resetPlayerTime();
-			player.getInventory().clear();
-			player.setGameMode(GameMode.SURVIVAL);
-			player.setHealth(20.0);
-			player.setFoodLevel(20);
-			player.setFireTicks(0);
-			player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
-			player.setCollidable(true);
-		}
+		playerStateService.resetPlayerDataWithoutLobby(player, arena);
 	}
 
 	/**

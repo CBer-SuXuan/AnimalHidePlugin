@@ -20,9 +20,14 @@ import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * 变身管理器
@@ -35,7 +40,10 @@ public class DisguiseManager {
 	private static final double DEFAULT_PLAYER_JUMP_STRENGTH = 0.42;
 	private static final float DEFAULT_PLAYER_WALK_SPEED = 0.2f;
 
+	private static final int DISGUISE_UI_SLOT = 17;
+
 	private final AnimalHidePlugin plugin;
+	private final Map<UUID, Long> temporaryDisguiseInvisibleUntil = new HashMap<>();
 	private BukkitTask chickenFlapTask;
 
 	public DisguiseManager(AnimalHidePlugin plugin) {
@@ -47,6 +55,7 @@ public class DisguiseManager {
 		if (chickenFlapTask != null) {
 			chickenFlapTask.cancel();
 		}
+		temporaryDisguiseInvisibleUntil.clear();
 	}
 
 	/**
@@ -149,7 +158,53 @@ public class DisguiseManager {
 		));
 
 		uiItem.setItemMeta(meta);
-		player.getInventory().setItem(7, uiItem);
+		player.getInventory().setItem(DISGUISE_UI_SLOT, uiItem);
+	}
+
+	public boolean makeDisguiseInvisibleOnce(Player player, int durationTicks) {
+		if (!DisguiseAPI.isDisguised(player)) {
+			player.sendMessage(Component.text("✘ 你当前没有伪装，无法使用伪装隐身！", NamedTextColor.RED));
+			return false;
+		}
+
+		Disguise disguise = DisguiseAPI.getDisguise(player);
+		if (disguise == null || !(disguise.getWatcher() instanceof LivingWatcher watcher)) {
+			player.sendMessage(Component.text("✘ 你的伪装状态异常，暂时无法隐身。", NamedTextColor.RED));
+			return false;
+		}
+
+		long now = System.currentTimeMillis();
+		Long activeUntil = temporaryDisguiseInvisibleUntil.get(player.getUniqueId());
+		if (activeUntil != null && activeUntil > now) {
+			long remainSec = Math.max(1L, (activeUntil - now + 999L) / 1000L);
+			player.sendActionBar(Component.text("伪装隐身还在生效中！剩余 " + remainSec + " 秒", NamedTextColor.YELLOW));
+			return false;
+		}
+
+		watcher.setInvisible(true);
+		watcher.rebuildWatchableObjects();
+		player.removePotionEffect(PotionEffectType.INVISIBILITY);
+		player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, durationTicks, 0, false, false, false));
+		temporaryDisguiseInvisibleUntil.put(player.getUniqueId(), now + durationTicks * 50L);
+
+		Bukkit.getScheduler().runTaskLater(plugin, () -> restoreDisguiseVisibility(player), durationTicks);
+		return true;
+	}
+
+	public void restoreDisguiseVisibility(Player player) {
+		temporaryDisguiseInvisibleUntil.remove(player.getUniqueId());
+		if (!player.isOnline() || !DisguiseAPI.isDisguised(player)) {
+			return;
+		}
+
+		Disguise disguise = DisguiseAPI.getDisguise(player);
+		if (disguise == null || !(disguise.getWatcher() instanceof LivingWatcher watcher)) {
+			return;
+		}
+
+		watcher.setInvisible(false);
+		watcher.rebuildWatchableObjects();
+		player.removePotionEffect(PotionEffectType.INVISIBILITY);
 	}
 
 	public void disguisePlayerAsEntity(Player player, Entity targetEntity) {

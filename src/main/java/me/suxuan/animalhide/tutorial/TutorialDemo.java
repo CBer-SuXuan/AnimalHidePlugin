@@ -1,5 +1,6 @@
 package me.suxuan.animalhide.tutorial;
 
+import lombok.Getter;
 import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
 
@@ -16,31 +17,31 @@ public enum TutorialDemo {
 	// ========== 躲藏者 - 嘲讽类 ==========
 	SAFE_TAUNT(
 			Camp.HIDER, Carrier.ANIMAL, EntityType.PIG, Material.PINK_DYE,
-			"§a§l安全嘲讽",
+			"§a§l便便嘲讽",
 			"§f粉色染料  §7·  §eCD 5s  §7·  §6+2分",
-			"§7右键释放 · 卖萌音效与音符粒子",
-			100L  // 5s，与游戏内 CD 一致
+			"§7右键释放 · 拉便便 + 动物叫声 + 寻便指南针",
+			100L
 	),
 	RISKY_TAUNT(
 			Camp.HIDER, Carrier.ANIMAL, EntityType.COW, Material.GLOWSTONE_DUST,
-			"§e§l冒险嘲讽",
+			"§e§l臭气嘲讽",
 			"§f荧石粉  §7·  §eCD 15s  §7·  §6+4分",
-			"§7右键释放 · 喧闹音效 + 掉落便便",
-			300L  // 15s
+			"§7右键释放 · 便便留痕 + 臭气持续跟随自己",
+			300L
 	),
 	FIREWORK_TAUNT(
 			Camp.HIDER, Carrier.ANIMAL, EntityType.SHEEP, Material.FIREWORK_ROCKET,
-			"§6§l烟花嘲讽",
-			"§f烟花火箭  §7·  §eCD 15s  §7·  §6+7分  §c·  限5次",
-			"§7右键释放 · 升空炫彩烟花",
-			300L  // 15s
+			"§6§l尖叫嘲讽",
+			"§f烟花火箭  §7·  §eCD 20s  §7·  §6+7分",
+			"§7右键释放 · 大动静尖叫 + 高亮标记跟随自己",
+			400L
 	),
 	DANGEROUS_TAUNT(
 			Camp.HIDER, Carrier.ANIMAL, EntityType.CHICKEN, Material.REDSTONE_TORCH,
-			"§c§l危险嘲讽",
-			"§f红石火把  §7·  §eCD 60s  §7·  §6+10分",
-			"§c⚠ 暴露大致坐标 · 10秒禁变身 · 附加加速",
-			400L  // 20s，演示比真实CD短一点观感更好
+			"§c§l派对嘲讽",
+			"§f红石火把  §7·  §eCD 45s  §7·  §6+10分",
+			"§c⚠ 连续显眼特效跟随自己 · 全体寻找者指南针强锁定",
+			400L
 	),
 
 	// ========== 躲藏者 - 工具/武器 ==========
@@ -75,6 +76,7 @@ public enum TutorialDemo {
 			160L  // 8s 演示一次爆炸
 	);
 
+	@Getter
 	public enum Camp {
 		HIDER("§a躲藏者"),
 		SEEKER("§c寻找者");
@@ -85,9 +87,6 @@ public enum TutorialDemo {
 			this.displayName = displayName;
 		}
 
-		public String getDisplayName() {
-			return displayName;
-		}
 	}
 
 	public enum Carrier {
@@ -106,7 +105,7 @@ public enum TutorialDemo {
 	private final long animationIntervalTicks;
 
 	TutorialDemo(Camp camp, Carrier carrier, EntityType animalType, Material heldItem,
-				 String titleLine, String subTitleLine, String hintLine, long animationIntervalTicks) {
+	             String titleLine, String subTitleLine, String hintLine, long animationIntervalTicks) {
 		this.camp = camp;
 		this.carrier = carrier;
 		this.animalType = animalType;

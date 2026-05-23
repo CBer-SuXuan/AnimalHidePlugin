@@ -143,29 +143,36 @@ public class GameRuleListener implements Listener {
 	 */
 	@EventHandler
 	public void onEntityPickupItem(EntityPickupItemEvent event) {
-		if (event.getEntity() instanceof Player player) {
-			Arena arena = gameManager.getArenaByPlayer(player);
+		if (!(event.getEntity() instanceof Player player)) return;
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
 
-			if (arena != null && arena.getState() == GameState.PLAYING) {
-				// 拦截默认的物品进入背包动作
-				event.setCancelled(true);
-
-				// 检查是不是寻找者，且捡起的是不是便便 (可可豆)
-				Item item = event.getItem();
-				if (item.getItemStack().getType() == Material.COCOA_BEANS) {
-					if (arena.getSeekers().contains(player.getUniqueId())) {
-						// 寻找者捡到了便便！
-						arena.addMatchScore(player.getUniqueId(), 5);
-						player.sendMessage(Component.text("你发现了便便！来源: ", NamedTextColor.GREEN)
-								.append(Component.text(item.getName(), NamedTextColor.YELLOW))
-								.append(Component.text(" (积分 +5)", NamedTextColor.GRAY)));
-
-						player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ITEM_PICKUP, 1f, 1f);
-						item.remove();
-					}
-				}
+		Item item = event.getItem();
+		if (item.getItemStack().getType() == Material.COCOA_BEANS) {
+			event.setCancelled(true);
+			if (!arena.getSeekers().contains(player.getUniqueId())) {
+				return;
 			}
+
+			me.suxuan.animalhide.skill.hider.TauntTraceSupport.PoopMarker marker = me.suxuan.animalhide.AnimalHidePlugin.getInstance()
+					.getTauntTraceSupport()
+					.takeMarkerByItem(item.getUniqueId());
+			if (marker == null) {
+				return;
+			}
+
+			int reward = arena.getTemplate().getScoring().getSeekerPickupPoop();
+			arena.addMatchScore(player.getUniqueId(), reward);
+			player.sendMessage(Component.text("你捡到了便便线索！", NamedTextColor.GREEN)
+					.append(Component.text(" 积分 +" + reward, NamedTextColor.YELLOW))
+					.append(Component.text(" · 来源: " + marker.displayName(), NamedTextColor.GRAY)));
+			player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ITEM_PICKUP, 1f, 1f);
+			item.remove();
+			me.suxuan.animalhide.AnimalHidePlugin.getInstance().getTauntTraceSupport().refreshSeekers(arena, null, true);
+			return;
 		}
+
+		event.setCancelled(true);
 	}
 
 	/**

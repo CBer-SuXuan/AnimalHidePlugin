@@ -7,6 +7,7 @@ import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.hooks.PAPIExpansion;
 import me.suxuan.animalhide.listeners.*;
 import me.suxuan.animalhide.manager.*;
+import me.suxuan.animalhide.skill.SkillManager;
 import me.suxuan.slimearena.api.ArenaManager;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -25,9 +26,9 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private DatabaseManager databaseManager;
 	private TutorialManager tutorialManager;
 	private AISpawnManager aiSpawnManager;
-	private TauntManager tauntManager;
-	private ExplosiveSheepManager explosiveSheepManager;
 	private DecoyManager decoyManager;
+	private me.suxuan.animalhide.skill.hider.TauntTraceSupport tauntTraceSupport;
+	private SkillManager skillManager;
 
 	private ArenaManager arenaManager;
 
@@ -69,9 +70,10 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		databaseManager = new DatabaseManager(this);
 		tutorialManager = new TutorialManager(this);
 		aiSpawnManager = new AISpawnManager(this);
-		tauntManager = new TauntManager(this);
-		explosiveSheepManager = new ExplosiveSheepManager(this);
 		decoyManager = new DecoyManager(disguiseManager);
+		tauntTraceSupport = new me.suxuan.animalhide.skill.hider.TauntTraceSupport(this);
+		tauntTraceSupport.start();
+		skillManager = new SkillManager(this);
 		return true;
 	}
 
@@ -110,6 +112,9 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		}
 		if (disguiseManager != null) {
 			disguiseManager.shutdown();
+		}
+		if (tauntTraceSupport != null) {
+			tauntTraceSupport.shutdown();
 		}
 	}
 
