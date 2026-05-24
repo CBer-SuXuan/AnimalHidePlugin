@@ -30,10 +30,14 @@ public class ScoringConfig {
 	public static final String KEY_HIDER_SURVIVAL_REWARD = "hider-survival-reward";
 	public static final String KEY_HIDER_SURVIVAL_INTERVAL = "hider-survival-interval";
 
-	public static final String KEY_TAUNT_SAFE = "taunt-safe";
-	public static final String KEY_TAUNT_RISKY = "taunt-risky";
-	public static final String KEY_TAUNT_FIREWORK = "taunt-firework";
-	public static final String KEY_TAUNT_DANGEROUS = "taunt-dangerous";
+	public static final String KEY_TAUNT_POOP = "taunt-poop";
+	public static final String KEY_TAUNT_STINKY = "taunt-stinky";
+	public static final String KEY_TAUNT_SCREAM = "taunt-scream";
+	public static final String KEY_TAUNT_PARTY = "taunt-party";
+	private static final String LEGACY_KEY_TAUNT_SAFE = "taunt-safe";
+	private static final String LEGACY_KEY_TAUNT_RISKY = "taunt-risky";
+	private static final String LEGACY_KEY_TAUNT_FIREWORK = "taunt-firework";
+	private static final String LEGACY_KEY_TAUNT_DANGEROUS = "taunt-dangerous";
 	public static final String KEY_SEEKER_PICKUP_POOP = "seeker-pickup-poop";
 
 	/**
@@ -46,10 +50,10 @@ public class ScoringConfig {
 			KEY_HIDER_WIN,
 			KEY_HIDER_SURVIVAL_REWARD,
 			KEY_HIDER_SURVIVAL_INTERVAL,
-			KEY_TAUNT_SAFE,
-			KEY_TAUNT_RISKY,
-			KEY_TAUNT_FIREWORK,
-			KEY_TAUNT_DANGEROUS,
+			KEY_TAUNT_POOP,
+			KEY_TAUNT_STINKY,
+			KEY_TAUNT_SCREAM,
+			KEY_TAUNT_PARTY,
 			KEY_SEEKER_PICKUP_POOP
 	);
 
@@ -66,10 +70,10 @@ public class ScoringConfig {
 		m.put(KEY_HIDER_WIN, 20);
 		m.put(KEY_HIDER_SURVIVAL_REWARD, 1);
 		m.put(KEY_HIDER_SURVIVAL_INTERVAL, 15);
-		m.put(KEY_TAUNT_SAFE, 2);
-		m.put(KEY_TAUNT_RISKY, 4);
-		m.put(KEY_TAUNT_FIREWORK, 7);
-		m.put(KEY_TAUNT_DANGEROUS, 10);
+		m.put(KEY_TAUNT_POOP, 2);
+		m.put(KEY_TAUNT_STINKY, 4);
+		m.put(KEY_TAUNT_SCREAM, 7);
+		m.put(KEY_TAUNT_PARTY, 10);
 		m.put(KEY_SEEKER_PICKUP_POOP, 1);
 		DEFAULTS = Map.copyOf(m);
 	}
@@ -87,10 +91,10 @@ public class ScoringConfig {
 		m.put(KEY_HIDER_WIN, "躲藏者胜利");
 		m.put(KEY_HIDER_SURVIVAL_REWARD, "潜行存活奖励");
 		m.put(KEY_HIDER_SURVIVAL_INTERVAL, "潜行结算间隔(秒)");
-		m.put(KEY_TAUNT_SAFE, "安全嘲讽");
-		m.put(KEY_TAUNT_RISKY, "冒险嘲讽");
-		m.put(KEY_TAUNT_FIREWORK, "烟花嘲讽");
-		m.put(KEY_TAUNT_DANGEROUS, "危险嘲讽");
+		m.put(KEY_TAUNT_POOP, "便便嘲讽");
+		m.put(KEY_TAUNT_STINKY, "臭气嘲讽");
+		m.put(KEY_TAUNT_SCREAM, "尖叫嘲讽");
+		m.put(KEY_TAUNT_PARTY, "派对嘲讽");
 		m.put(KEY_SEEKER_PICKUP_POOP, "寻找者拾取便便");
 		LABELS = Map.copyOf(m);
 	}
@@ -138,10 +142,10 @@ public class ScoringConfig {
 				DEFAULTS.get(KEY_HIDER_WIN),
 				DEFAULTS.get(KEY_HIDER_SURVIVAL_REWARD),
 				DEFAULTS.get(KEY_HIDER_SURVIVAL_INTERVAL),
-				DEFAULTS.get(KEY_TAUNT_SAFE),
-				DEFAULTS.get(KEY_TAUNT_RISKY),
-				DEFAULTS.get(KEY_TAUNT_FIREWORK),
-				DEFAULTS.get(KEY_TAUNT_DANGEROUS),
+				DEFAULTS.get(KEY_TAUNT_POOP),
+				DEFAULTS.get(KEY_TAUNT_STINKY),
+				DEFAULTS.get(KEY_TAUNT_SCREAM),
+				DEFAULTS.get(KEY_TAUNT_PARTY),
 				DEFAULTS.get(KEY_SEEKER_PICKUP_POOP)
 		);
 	}
@@ -158,10 +162,10 @@ public class ScoringConfig {
 				section.getInt(KEY_HIDER_WIN, DEFAULTS.get(KEY_HIDER_WIN)),
 				section.getInt(KEY_HIDER_SURVIVAL_REWARD, DEFAULTS.get(KEY_HIDER_SURVIVAL_REWARD)),
 				section.getInt(KEY_HIDER_SURVIVAL_INTERVAL, DEFAULTS.get(KEY_HIDER_SURVIVAL_INTERVAL)),
-				section.getInt(KEY_TAUNT_SAFE, DEFAULTS.get(KEY_TAUNT_SAFE)),
-				section.getInt(KEY_TAUNT_RISKY, DEFAULTS.get(KEY_TAUNT_RISKY)),
-				section.getInt(KEY_TAUNT_FIREWORK, DEFAULTS.get(KEY_TAUNT_FIREWORK)),
-				section.getInt(KEY_TAUNT_DANGEROUS, DEFAULTS.get(KEY_TAUNT_DANGEROUS)),
+				readIntWithLegacy(section, KEY_TAUNT_POOP, LEGACY_KEY_TAUNT_SAFE),
+				readIntWithLegacy(section, KEY_TAUNT_STINKY, LEGACY_KEY_TAUNT_RISKY),
+				readIntWithLegacy(section, KEY_TAUNT_SCREAM, LEGACY_KEY_TAUNT_FIREWORK),
+				readIntWithLegacy(section, KEY_TAUNT_PARTY, LEGACY_KEY_TAUNT_DANGEROUS),
 				section.getInt(KEY_SEEKER_PICKUP_POOP, DEFAULTS.get(KEY_SEEKER_PICKUP_POOP))
 		);
 	}
@@ -184,12 +188,20 @@ public class ScoringConfig {
 			case KEY_HIDER_WIN -> hiderWin;
 			case KEY_HIDER_SURVIVAL_REWARD -> hiderSurvivalReward;
 			case KEY_HIDER_SURVIVAL_INTERVAL -> hiderSurvivalInterval;
-			case KEY_TAUNT_SAFE -> tauntSafe;
-			case KEY_TAUNT_RISKY -> tauntRisky;
-			case KEY_TAUNT_FIREWORK -> tauntFirework;
-			case KEY_TAUNT_DANGEROUS -> tauntDangerous;
+			case KEY_TAUNT_POOP -> tauntSafe;
+			case KEY_TAUNT_STINKY -> tauntRisky;
+			case KEY_TAUNT_SCREAM -> tauntFirework;
+			case KEY_TAUNT_PARTY -> tauntDangerous;
 			case KEY_SEEKER_PICKUP_POOP -> seekerPickupPoop;
 			default -> null;
 		};
+	}
+
+	private static int readIntWithLegacy(ConfigurationSection section, String key, String legacyKey) {
+		int defaultValue = DEFAULTS.get(key);
+		if (section.contains(key)) {
+			return section.getInt(key, defaultValue);
+		}
+		return section.getInt(legacyKey, defaultValue);
 	}
 }

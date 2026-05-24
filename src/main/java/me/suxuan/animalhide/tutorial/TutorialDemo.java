@@ -62,7 +62,7 @@ public enum TutorialDemo {
 
 	// ========== 寻找者 ==========
 	SEEKER_KIT(
-			Camp.SEEKER, Carrier.ARMOR_STAND, null, Material.WOODEN_SWORD,
+			Camp.SEEKER, Carrier.ARMOR_STAND, null, Material.STONE_SWORD,
 			"§c§l寻找者装备",
 			"§f木剑 + 无限弓  §7·  §a追杀躲藏者",
 			"§7开局可自由移动 · 寻找阶段开始后获得少量加速",
@@ -99,20 +99,20 @@ public enum TutorialDemo {
 	private final Carrier carrier;
 	private final EntityType animalType;
 	private final Material heldItem;
-	private final String titleLine;
-	private final String subTitleLine;
-	private final String hintLine;
+	private final String defaultTitleLine;
+	private final String defaultSubTitleLine;
+	private final String defaultHintLine;
 	private final long animationIntervalTicks;
 
 	TutorialDemo(Camp camp, Carrier carrier, EntityType animalType, Material heldItem,
-	             String titleLine, String subTitleLine, String hintLine, long animationIntervalTicks) {
+	             String defaultTitleLine, String defaultSubTitleLine, String defaultHintLine, long animationIntervalTicks) {
 		this.camp = camp;
 		this.carrier = carrier;
 		this.animalType = animalType;
 		this.heldItem = heldItem;
-		this.titleLine = titleLine;
-		this.subTitleLine = subTitleLine;
-		this.hintLine = hintLine;
+		this.defaultTitleLine = defaultTitleLine;
+		this.defaultSubTitleLine = defaultSubTitleLine;
+		this.defaultHintLine = defaultHintLine;
 		this.animationIntervalTicks = animationIntervalTicks;
 	}
 
@@ -132,16 +132,16 @@ public enum TutorialDemo {
 		return heldItem;
 	}
 
-	public String getTitleLine() {
-		return titleLine;
+	public String getDefaultTitleLine() {
+		return defaultTitleLine;
 	}
 
-	public String getSubTitleLine() {
-		return subTitleLine;
+	public String getDefaultSubTitleLine() {
+		return defaultSubTitleLine;
 	}
 
-	public String getHintLine() {
-		return hintLine;
+	public String getDefaultHintLine() {
+		return defaultHintLine;
 	}
 
 	public long getAnimationIntervalTicks() {

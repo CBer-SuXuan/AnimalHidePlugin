@@ -14,7 +14,7 @@ public class PoopTauntSkill extends ItemBasedSkill {
 	private final TauntTraceSupport tauntTraceSupport;
 
 	public PoopTauntSkill(TauntTraceSupport tauntTraceSupport) {
-		super("poop_taunt", Material.PINK_DYE);
+		super("poop_taunt", Material.COCOA_BEANS);
 		this.tauntTraceSupport = tauntTraceSupport;
 	}
 
@@ -32,6 +32,8 @@ public class PoopTauntSkill extends ItemBasedSkill {
 		Location tauntLoc = tauntTraceSupport.resolveTauntLocation(context);
 		ScoringConfig scoring = context.arena().getTemplate().getScoring();
 		int scoreReward = scoring.getTauntSafe();
+		double healAmount = context.plugin().getConfigManager().getPoopTauntHealAmount(context.arena().getArenaName());
+		int cooldownSeconds = HiderSkillSupport.getPoopTauntCooldownSeconds(context.arena().getArenaName());
 
 		tauntTraceSupport.createPoopMarker(context, tauntLoc, context.player().getName() + " 的便便");
 		tauntTraceSupport.playAnimalSound(context, tauntLoc, 1f, 1f);
@@ -39,6 +41,7 @@ public class PoopTauntSkill extends ItemBasedSkill {
 		tauntTraceSupport.refreshSeekers(context.arena(), null, true);
 
 		context.player().sendMessage(Component.text("发动了 便便嘲讽！留下一坨线索，积分 +" + scoreReward, NamedTextColor.GREEN));
-		HiderSkillSupport.applySharedTauntCooldownAndReward(context, 5, scoreReward);
+		HiderSkillSupport.healPlayerFromTaunt(context, healAmount, "便便嘲讽", NamedTextColor.GREEN);
+		HiderSkillSupport.applySharedTauntCooldownAndReward(context, cooldownSeconds, scoreReward);
 	}
 }

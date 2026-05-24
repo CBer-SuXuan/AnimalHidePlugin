@@ -10,10 +10,11 @@ import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Display;
+import org.bukkit.entity.TextDisplay;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,6 @@ public class ConfigManager {
 			for (File file : files) {
 				String arenaName = file.getName().replace(".yml", "");
 				arenaConfigs.put(arenaName, YamlConfiguration.loadConfiguration(file));
-				plugin.getComponentLogger().info("已读取地图配置: {}", arenaName);
 			}
 		}
 	}
@@ -78,7 +78,7 @@ public class ConfigManager {
 		return new Location(null, section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
 				(float) section.getDouble("yaw", 0.0), (float) section.getDouble("pitch", 0.0));
 	}
-	
+
 	/**
 	 * 解析寻找阶段需清空的隔离墙区域（模板坐标，{@code locations.phase-wall} 的 min/max 对角）。
 	 */
@@ -123,6 +123,106 @@ public class ConfigManager {
 
 	public double getSeekerReleasedMoveSpeed() {
 		return Math.max(0.01, mainConfig.getDouble("seeker.released-move-speed", 0.11));
+	}
+
+	public int getPoopTauntCooldownSeconds(String arenaName) {
+		return getArenaTauntCooldownSeconds(arenaName, "poop", "safe", 5);
+	}
+
+	public int getStinkyTauntCooldownSeconds(String arenaName) {
+		return getArenaTauntCooldownSeconds(arenaName, "stinky", "stinky", 15);
+	}
+
+	public int getScreamTauntCooldownSeconds(String arenaName) {
+		return getArenaTauntCooldownSeconds(arenaName, "scream", "scream", 30);
+	}
+
+	public int getPartyTauntCooldownSeconds(String arenaName) {
+		return getArenaTauntCooldownSeconds(arenaName, "party", "party", 50);
+	}
+
+	private int getArenaTauntCooldownSeconds(String arenaName, String newKey, String legacyKey, int defaultValue) {
+		FileConfiguration arenaConfig = arenaName == null ? null : arenaConfigs.get(arenaName);
+		if (arenaConfig != null) {
+			String newPath = "taunt-cooldowns." + newKey;
+			if (arenaConfig.contains(newPath)) {
+				return Math.max(1, arenaConfig.getInt(newPath, defaultValue));
+			}
+			String legacyArenaPath = "taunt-cooldowns." + legacyKey;
+			if (arenaConfig.contains(legacyArenaPath)) {
+				return Math.max(1, arenaConfig.getInt(legacyArenaPath, defaultValue));
+			}
+		}
+		return Math.max(1, mainConfig.getInt("taunt-cooldowns." + legacyKey, defaultValue));
+	}
+
+	public double getPoopTauntHealAmount(String arenaName) {
+		return getArenaTauntHealAmount(arenaName, "poop", 0.0);
+	}
+
+	public double getStinkyTauntHealAmount(String arenaName) {
+		return getArenaTauntHealAmount(arenaName, "stinky", 0.0);
+	}
+
+	public double getScreamTauntHealAmount(String arenaName) {
+		return getArenaTauntHealAmount(arenaName, "scream", 0.0);
+	}
+
+	public double getPartyTauntHealAmount(String arenaName) {
+		return getArenaTauntHealAmount(arenaName, "party", 0.0);
+	}
+
+	private double getArenaTauntHealAmount(String arenaName, String key, double defaultValue) {
+		FileConfiguration arenaConfig = arenaName == null ? null : arenaConfigs.get(arenaName);
+		if (arenaConfig != null) {
+			String path = "taunt-heal." + key;
+			if (arenaConfig.contains(path)) {
+				return Math.max(0.0, arenaConfig.getDouble(path, defaultValue));
+			}
+		}
+		return defaultValue;
+	}
+
+	public boolean isQueueTutorialEnabled() {
+		return mainConfig.getBoolean("queue.tutorial.enabled", true);
+	}
+
+	public String getTutorialDemoText(String demoId, String key, String fallback) {
+		return mainConfig.getString("tutorial-content.demos." + demoId + "." + key, fallback);
+	}
+
+	public List<String> getQueueTutorialHintTemplateLines(String key) {
+		return mainConfig.getStringList("tutorial-content.hints." + key + ".lines");
+	}
+
+	public String getQueueTutorialHintTitle(String key) {
+		return mainConfig.getString("tutorial-content.hints." + key + ".title", "");
+	}
+
+	public Display.Billboard getQueueTutorialHintBillboard() {
+		String raw = mainConfig.getString("tutorial-content.hints-common.billboard", "CENTER");
+		try {
+			return Display.Billboard.valueOf(raw.toUpperCase());
+		} catch (IllegalArgumentException ex) {
+			return Display.Billboard.CENTER;
+		}
+	}
+
+	public TextDisplay.TextAlignment getQueueTutorialHintAlignment() {
+		String raw = mainConfig.getString("tutorial-content.hints-common.alignment", "CENTER");
+		try {
+			return TextDisplay.TextAlignment.valueOf(raw.toUpperCase());
+		} catch (IllegalArgumentException ex) {
+			return TextDisplay.TextAlignment.CENTER;
+		}
+	}
+
+	public int getQueueTutorialHintLineWidth() {
+		return Math.max(80, mainConfig.getInt("tutorial-content.hints-common.line-width", 240));
+	}
+
+	public float getQueueTutorialHintViewRange() {
+		return (float) Math.max(0.1, mainConfig.getDouble("tutorial-content.hints-common.view-range", 0.75));
 	}
 
 	/**

@@ -57,10 +57,10 @@ allowed-monsters:
 # hider-win               躲藏者全队胜利时每人结算分
 # hider-survival-reward   躲藏者每存活一个间隔得分
 # hider-survival-interval 躲藏者存活结算间隔（秒，必须 >= 1）
-# taunt-safe              安全嘲讽（粉色染料）得分
-# taunt-risky             冒险嘲讽（萤石粉）得分
-# taunt-firework          烟花嘲讽得分
-# taunt-dangerous         危险嘲讽（红石火把）得分
+# taunt-poop              便便嘲讽得分
+# taunt-stinky            臭气嘲讽得分
+# taunt-scream            尖叫嘲讽得分
+# taunt-party             派对嘲讽得分
 # seeker-pickup-poop      寻找者拾取便便得分
 # ============================================================
 scoring:
@@ -70,8 +70,20 @@ scoring:
   hider-win: 20
   hider-survival-reward: 1
   hider-survival-interval: 15
-  taunt-safe: 2
-  taunt-risky: 4
-  taunt-firework: 7
-  taunt-dangerous: 10
+  taunt-poop: 2
+  taunt-stinky: 4
+  taunt-scream: 7
+  taunt-party: 10
   seeker-pickup-poop: 1
+
+taunt-cooldowns:
+  poop: 5
+  stinky: 15
+  scream: 30
+  party: 50
+
+taunt-heal:
+  poop: 1.0
+  stinky: 2.0
+  scream: 3.0
+  party: 4.0

@@ -19,7 +19,7 @@ public class PartyTauntSkill extends ItemBasedSkill {
 	private final TauntTraceSupport tauntTraceSupport;
 
 	public PartyTauntSkill(TauntTraceSupport tauntTraceSupport) {
-		super("party_taunt", Material.REDSTONE_TORCH);
+		super("party_taunt", Material.FIREWORK_STAR);
 		this.tauntTraceSupport = tauntTraceSupport;
 	}
 
@@ -37,14 +37,14 @@ public class PartyTauntSkill extends ItemBasedSkill {
 		Location tauntLoc = tauntTraceSupport.resolveTauntLocation(context);
 		ScoringConfig scoring = context.arena().getTemplate().getScoring();
 		int scoreReward = scoring.getTauntDangerous();
+		double healAmount = context.plugin().getConfigManager().getPartyTauntHealAmount(context.arena().getArenaName());
+		int cooldownSeconds = HiderSkillSupport.getPartyTauntCooldownSeconds(context.arena().getArenaName());
 
-		tauntTraceSupport.createPoopMarker(context, tauntLoc, context.player().getName() + " 的派对现场");
 		tauntTraceSupport.playAnimalSound(context, tauntLoc, 2.2f, 1.1f);
 		tauntLoc.getWorld().playSound(tauntLoc, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1.2f, 1.1f);
 		tauntLoc.getWorld().playSound(tauntLoc, Sound.BLOCK_NOTE_BLOCK_CHIME, 1.1f, 1.8f);
 		tauntTraceSupport.spawnPartyBurst(context.player(), 120L);
 		tauntTraceSupport.spawnBeaconColumn(context.player(), 120L, Particle.TOTEM_OF_UNDYING, 4, 0.12);
-		tauntTraceSupport.refreshSeekers(context.arena(), tauntLoc, true);
 
 		for (UUID seekerId : context.arena().getSeekers()) {
 			Player seeker = org.bukkit.Bukkit.getPlayer(seekerId);
@@ -53,7 +53,13 @@ public class PartyTauntSkill extends ItemBasedSkill {
 			seeker.playSound(seeker.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.8f);
 		}
 
-		context.player().sendMessage(Component.text("发动了 派对嘲讽！全场都会注意到这场表演，积分 +" + scoreReward, NamedTextColor.DARK_RED));
-		HiderSkillSupport.applySharedTauntCooldownAndReward(context, 45, scoreReward);
+		boolean glowApplied = context.plugin().getDisguiseManager().setDisguiseGlowing(context.player(), 100);
+		context.player().sendMessage(Component.text(glowApplied
+				? "发动了 派对嘲讽！你会发光 5 秒并暴露自己，积分 +" + scoreReward
+				: "发动了 派对嘲讽！全场都会注意到这场表演，积分 +" + scoreReward,
+				NamedTextColor.DARK_RED));
+		HiderSkillSupport.healPlayerFromTaunt(context, healAmount, "派对嘲讽", NamedTextColor.DARK_RED);
+		HiderSkillSupport.broadcastTaunt(context, "【派对嘲讽】", NamedTextColor.DARK_RED);
+		HiderSkillSupport.applySharedTauntCooldownAndReward(context, cooldownSeconds, scoreReward);
 	}
 }

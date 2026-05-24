@@ -64,7 +64,7 @@ public class ExplosiveSheepSkill extends ItemBasedSkill {
 		seeker.setCooldown(Material.SHEEP_SPAWN_EGG, 20 * 20);
 
 		new BukkitRunnable() {
-			int ticks = 30;
+			int remainingTicks = 60;
 			boolean isRed = false;
 
 			@Override
@@ -75,12 +75,12 @@ public class ExplosiveSheepSkill extends ItemBasedSkill {
 					return;
 				}
 
-				if (ticks > 0) {
+				if (remainingTicks > 0) {
 					isRed = !isRed;
 					bombSheep.setColor(isRed ? DyeColor.RED : DyeColor.WHITE);
-					float pitch = 1.0f + ((30 - ticks) * 0.03f);
+					float pitch = 1.0f + ((60 - remainingTicks) * 0.015f);
 					bombSheep.getWorld().playSound(bombSheep.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, pitch);
-					ticks--;
+					remainingTicks -= 5;
 				} else {
 					executeExplosion(bombSheep, seeker, context);
 					bombSheep.remove();
@@ -120,7 +120,7 @@ public class ExplosiveSheepSkill extends ItemBasedSkill {
 		loc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, loc, 1);
 		loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1f, 1f);
 
-		double radius = 6.0;
+		double radius = 5.0;
 		List<Entity> nearby = (List<Entity>) loc.getWorld().getNearbyEntities(loc, radius, radius, radius);
 
 		for (Entity entity : nearby) {

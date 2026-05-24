@@ -17,10 +17,101 @@ queue:
   enabled: true
   template-name: "queue"
   allow-normal-leave: false
+  tutorial:
+    enabled: true
 
 seeker:
   pre-release-move-speed: 0.10
   released-move-speed: 0.11
+
+taunt-cooldowns:
+  safe: 5
+  stinky: 15
+  scream: 30
+  party: 50
+
+tutorial-content:
+  demos:
+    safe-taunt:
+      title: "§a§l便便嘲讽"
+      subtitle: "§f粉色染料  §7·  §eCD 5s  §7·  §6+1分"
+      hint: "§7拉便便 + 叫声"
+    risky-taunt:
+      title: "§e§l臭气嘲讽"
+      subtitle: "§f荧石粉  §7·  §eCD 15s  §7·  §6+4分"
+      hint: "§7拉便便 + 臭气持续跟随自己"
+    firework-taunt:
+      title: "§6§l尖叫嘲讽"
+      subtitle: "§f烟花火箭  §7·  §eCD 20s  §7·  §6+7分"
+      hint: "§7右键释放 · 尖叫大动静 + 彩色光柱直冲天空"
+    dangerous-taunt:
+      title: "§c§l派对嘲讽"
+      subtitle: "§f红石火把  §7·  §eCD 45s  §7·  §6+10分"
+      hint: "§c⚠ 连续显眼特效跟随自己 · 自身发光 3 秒"
+
+    disguise-wand:
+      title: "§b§l变身魔杖"
+      subtitle: "§f烈焰棒  §7·  §a右键生物切换伪装"
+      hint: "§7游戏开始后 · 你将能模仿任意允许的生物"
+    hider-bow:
+      title: "§9§l击退弓"
+      subtitle: "§f弓 + 自动补给箭  §7·  §a击退寻找者 · 命中升级"
+      hint: "§7游戏开始后 · 每 5 秒补一支箭 · 最多 5 支"
+    seeker-kit:
+      title: "§c§l寻找者装备"
+      subtitle: "§f石剑 + 无限弓  §7·  §a追杀躲藏者"
+      hint: "§7寻找阶段开始后获得少量加速"
+    explosive-sheep:
+      title: "§c§l爆炸绵羊"
+      subtitle: "§f绵羊蛋  §7·  §eCD 20s  §7·  §a清理AI · 伤害躲藏者"
+      hint: "§7右键释放 · 3秒后炸开 · 范围 5 格"
+  hints-common:
+    billboard: "CENTER"
+    alignment: "CENTER"
+    line-width: 420
+    view-range: 1.2
+  hints:
+    hider:
+      title: "§a§l躲藏者提示"
+      lines:
+        - "§7• 利用技能拖延时间并持续拿生存分"
+        - "§7• 变身魔杖用于切换可伪装生物"
+        - "§7• 击退弓可自保，但箭数量有限"
+        - "§7• 躲藏在大型动物下不失为一种好选择"
+        - "§7• 位于水中会发光"
+    seeker:
+      title: "§c§l寻找者提示"
+      lines:
+        - "§7• 开局后优先观察可疑移动与技能特效"
+        - "§7• 弓箭与近战都可用于压制躲藏者"
+        - "§7• 爆炸绵羊适合清理 AI 动物堆"
+        - "§7• 在大型动物下面寻找会有意外发现"
+        - "§7• F3+B（同时按下）可以开启碰撞箱"
+    overview:
+      title: "§6§l流程概述"
+      lines:
+        - "§7• 进入房间后先等待人满与倒计时"
+        - "§7• 开局先进入躲藏阶段，躲藏者提前找位置"
+        - "§7• 随后寻找者出动，双方用技能博弈直到结束"
+    decoy:
+      title: "§b§l定点伪装"
+      lines:
+        - "§7• 在地面上右键可锁定在原地伪装"
+        - "§7• 原地伪装时候可以转动视角和释放嘲讽，不能攻击"
+        - "§7• 适合躲在角落、货架或障碍物旁降低破绽"
+        - "§7• 被贴脸观察时记得及时取消或换位"
+    invisibility:
+      title: "§d§l一次性隐身"
+      lines:
+        - "§7• 关键时刻可短暂脱离视线，争取重新换点"
+        - "§7• 更适合保命，不建议一开局就浪费"
+        - "§7• 隐身结束前最好提前想好下一个落脚点"
+    compass:
+      title: "§e§l指南针说明"
+      lines:
+        - "§7• 嘲讽与便便线索会把寻找者指南针引过来"
+        - "§7• 高调技能更容易暴露自己的大致方位"
+        - "§7• 看见特效和听到动静时，通常已经被锁定"
 
 # 主大厅
 main-lobby:

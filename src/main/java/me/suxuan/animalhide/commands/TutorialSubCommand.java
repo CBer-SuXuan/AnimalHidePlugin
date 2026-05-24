@@ -145,9 +145,9 @@ public class TutorialSubCommand implements SubCommand {
 			Component line = Component.text(" • ", NamedTextColor.DARK_GRAY)
 					.append(Component.text(demo.getId(), NamedTextColor.AQUA))
 					.append(Component.text("  ", NamedTextColor.DARK_GRAY))
-					.append(LegacyComponentSerializer.legacySection().deserialize(demo.getTitleLine()))
+					.append(LegacyComponentSerializer.legacySection().deserialize(demo.getDefaultTitleLine()))
 					.append(Component.text("  ", NamedTextColor.DARK_GRAY))
-					.append(LegacyComponentSerializer.legacySection().deserialize(demo.getSubTitleLine()))
+					.append(LegacyComponentSerializer.legacySection().deserialize(demo.getDefaultSubTitleLine()))
 					.decoration(TextDecoration.ITALIC, false);
 			sender.sendMessage(line);
 		}

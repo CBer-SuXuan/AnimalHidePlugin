@@ -7,7 +7,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
@@ -63,7 +62,7 @@ public class RoleSetupService {
 		}
 
 		hider.sendMessage(Component.text("你是躲藏者！", NamedTextColor.GREEN));
-		equipHider(hider);
+		equipHider(hider, arena);
 	}
 
 	public void applySeekerPreReleaseAttributes(Player seeker) {
@@ -134,10 +133,10 @@ public class RoleSetupService {
 
 		ItemStack sheepTrap = new ItemStack(Material.SHEEP_SPAWN_EGG);
 		ItemMeta trapMeta = sheepTrap.getItemMeta();
-		trapMeta.displayName(Component.text("★ 爆炸绵羊 (右键释放) ★", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+		trapMeta.displayName(Component.text("★ 爆炸绵羊（3秒引爆）★", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
 		trapMeta.lore(List.of(
-				Component.text("释放一只会爆炸的绵羊，清理周围的 AI 并伤害玩家！", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("冷却时间: 20 秒", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+				Component.text("释放后 3 秒爆炸，清理周围 AI 并伤害躲藏者", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("爆炸半径: 5 格 · 冷却时间: 20 秒", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
 		));
 		sheepTrap.setItemMeta(trapMeta);
 		seeker.getInventory().setItem(2, sheepTrap);
@@ -172,7 +171,7 @@ public class RoleSetupService {
 		}
 	}
 
-	private void equipHider(Player hider) {
+	private void equipHider(Player hider, Arena arena) {
 		ItemStack wand = new ItemStack(Material.BLAZE_ROD);
 		ItemMeta wandMeta = wand.getItemMeta();
 		wandMeta.displayName(Component.text("★ 变身魔杖 (右键生物) ★", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
@@ -181,11 +180,11 @@ public class RoleSetupService {
 
 		ItemStack decoyItem = new ItemStack(Material.LEAD);
 		ItemMeta decoyMeta = decoyItem.getItemMeta();
-		decoyMeta.displayName(Component.text("▶ 定点伪装 (右键切换) ◀", NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.ITALIC, false));
+		decoyMeta.displayName(Component.text("▶ 定点伪装（原地锁定）◀", NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.ITALIC, false));
 		decoyMeta.lore(List.of(
-				Component.text("锁定当前位置与朝向，可转动视角", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("仅可在站立于地面时使用", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("期间无法移动或射箭，可使用嘲讽", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+				Component.text("右键切换当前伪装的定点状态", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("锁定后会停在原地，但仍可转动视角", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("适合卡角落、货架与障碍物旁躲藏", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
 		));
 		decoyItem.setItemMeta(decoyMeta);
 		hider.getInventory().setItem(2, decoyItem);
@@ -197,42 +196,50 @@ public class RoleSetupService {
 		bow.setItemMeta(bowMeta);
 		hider.getInventory().setItem(1, bow);
 
-		ItemStack safeTaunt = new ItemStack(Material.PINK_DYE);
+		ItemStack safeTaunt = new ItemStack(Material.COCOA_BEANS);
 		ItemMeta safeMeta = safeTaunt.getItemMeta();
-		safeMeta.displayName(Component.text("▶ 便便嘲讽 (CD: 5秒) ◀", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
-		safeMeta.lore(List.of(
-				Component.text("拉下一坨便便并发出叫声", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("寻找者会获得指向最近便便的指南针", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+		safeMeta.displayName(Component.text("✦ 便便诱饵 · 低风险 ✦", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+			safeMeta.lore(List.of(
+				Component.text("冷却: " + me.suxuan.animalhide.skill.hider.HiderSkillSupport.getPoopTauntCooldownSeconds(arena.getArenaName()) + " 秒", NamedTextColor.DARK_GREEN).decoration(TextDecoration.ITALIC, false),
+
+				Component.text("放下一坨线索便便并发出动物叫声", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("适合轻度骗位、试探寻找者动向", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
 		));
 		safeTaunt.setItemMeta(safeMeta);
 		hider.getInventory().setItem(3, safeTaunt);
 
-		ItemStack modTaunt = new ItemStack(Material.GLOWSTONE_DUST);
+		ItemStack modTaunt = new ItemStack(Material.SLIME_BALL);
 		ItemMeta modMeta = modTaunt.getItemMeta();
-		modMeta.displayName(Component.text("▶ 臭气嘲讽 (CD: 15秒) ◀", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-		modMeta.lore(List.of(
-				Component.text("留下便便并持续散发臭气", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("靠近后更容易被寻找者肉眼发现", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+		modMeta.displayName(Component.text("✦ 臭气拖尾 · 中风险 ✦", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+			modMeta.lore(List.of(
+				Component.text("冷却: " + me.suxuan.animalhide.skill.hider.HiderSkillSupport.getStinkyTauntCooldownSeconds(arena.getArenaName()) + " 秒", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false),
+
+				Component.text("释放后会持续散发臭气并留下气味痕迹", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("适合边跑边干扰，但近距离更容易暴露", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
 		));
 		modTaunt.setItemMeta(modMeta);
 		hider.getInventory().setItem(4, modTaunt);
 
-		ItemStack fwTaunt = new ItemStack(Material.FIREWORK_ROCKET);
+		ItemStack fwTaunt = new ItemStack(Material.GOAT_HORN);
 		ItemMeta fwMeta = fwTaunt.getItemMeta();
-		fwMeta.displayName(Component.text("▶ 尖叫嘲讽 (CD: 20秒) ◀", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
-		fwMeta.lore(List.of(
-				Component.text("发出大动静并升起明显标记柱", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("远处寻找者也能循声赶来", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+		fwMeta.displayName(Component.text("✦ 尖叫光柱 · 高风险 ✦", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+			fwMeta.lore(List.of(
+				Component.text("冷却: " + me.suxuan.animalhide.skill.hider.HiderSkillSupport.getScreamTauntCooldownSeconds(arena.getArenaName()) + " 秒", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false),
+
+				Component.text("制造巨大动静，并升起彩色冲天光柱", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("远处也能看到你的方位，适合强行拉扯节奏", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
 		));
 		fwTaunt.setItemMeta(fwMeta);
 		hider.getInventory().setItem(5, fwTaunt);
 
-		ItemStack dangTaunt = new ItemStack(Material.REDSTONE_TORCH);
+		ItemStack dangTaunt = new ItemStack(Material.FIREWORK_STAR);
 		ItemMeta dangMeta = dangTaunt.getItemMeta();
-		dangMeta.displayName(Component.text("▶ 派对嘲讽 (CD: 45秒) ◀", NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false));
-		dangMeta.lore(List.of(
-				Component.text("触发全场最显眼的嘲讽演出", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-				Component.text("全体寻找者的指南针会强锁定这次目标", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+		dangMeta.displayName(Component.text("✦ 派对暴露 · 极高风险 ✦", NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false));
+			dangMeta.lore(List.of(
+				Component.text("冷却: " + me.suxuan.animalhide.skill.hider.HiderSkillSupport.getPartyTauntCooldownSeconds(arena.getArenaName()) + " 秒", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false),
+
+				Component.text("触发最显眼的派对演出与连续特效", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+				Component.text("发动后自身发光 5 秒，适合搏命转点", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
 		));
 		dangTaunt.setItemMeta(dangMeta);
 		hider.getInventory().setItem(6, dangTaunt);
@@ -240,10 +247,10 @@ public class RoleSetupService {
 		if (me.suxuan.animalhide.AnimalHidePlugin.getInstance().getConfigManager().isHiderDisguiseInvisibilityEnabled()) {
 			ItemStack invisSkill = new ItemStack(Material.AMETHYST_SHARD);
 			ItemMeta invisMeta = invisSkill.getItemMeta();
-			invisMeta.displayName(Component.text("▶ 一次性伪装隐身 (5秒) ◀", NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.ITALIC, false));
+			invisMeta.displayName(Component.text("▶ 一次性伪装隐身（5秒）◀", NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.ITALIC, false));
 			invisMeta.lore(List.of(
-					Component.text("右键后让你的伪装短暂隐身", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-					Component.text("一次性技能，用完即消失", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+					Component.text("让当前伪装短暂从视野中消失", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+					Component.text("保命或换点专用，一局只能使用一次", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
 			));
 			invisSkill.setItemMeta(invisMeta);
 			hider.getInventory().setItem(7, invisSkill);

@@ -31,6 +31,7 @@ public class MatchResultService {
 
 	public void endGame(Arena arena, PlayerRole winner, Consumer<Arena> destroyArenaMatch) {
 		arena.openPhaseDoors();
+		arena.setFinalRevealActive(false);
 		arena.setState(GameState.ENDING);
 
 		boolean adminShutdown = winner == PlayerRole.SPECTATOR;

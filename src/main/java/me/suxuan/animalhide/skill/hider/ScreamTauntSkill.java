@@ -16,7 +16,7 @@ public class ScreamTauntSkill extends ItemBasedSkill {
 	private final TauntTraceSupport tauntTraceSupport;
 
 	public ScreamTauntSkill(TauntTraceSupport tauntTraceSupport) {
-		super("scream_taunt", Material.FIREWORK_ROCKET);
+		super("scream_taunt", Material.GOAT_HORN);
 		this.tauntTraceSupport = tauntTraceSupport;
 	}
 
@@ -34,16 +34,18 @@ public class ScreamTauntSkill extends ItemBasedSkill {
 		Location tauntLoc = tauntTraceSupport.resolveTauntLocation(context);
 		ScoringConfig scoring = context.arena().getTemplate().getScoring();
 		int scoreReward = scoring.getTauntFirework();
+		double healAmount = context.plugin().getConfigManager().getScreamTauntHealAmount(context.arena().getArenaName());
+		int cooldownSeconds = HiderSkillSupport.getScreamTauntCooldownSeconds(context.arena().getArenaName());
 
-		tauntTraceSupport.createPoopMarker(context, tauntLoc, context.player().getName() + " 的尖叫现场");
 		tauntTraceSupport.playAnimalSound(context, tauntLoc, 2f, 1.2f);
 		tauntLoc.getWorld().playSound(tauntLoc, Sound.ENTITY_GOAT_SCREAMING_PREPARE_RAM, 1.2f, 1.4f);
-		tauntTraceSupport.spawnBeaconColumn(context.player(), 70L, Particle.END_ROD, 3, 0.08);
-		tauntTraceSupport.spawnBeaconColumn(context.player(), 70L, Particle.CLOUD, 2, 0.12);
-		tauntTraceSupport.refreshSeekers(context.arena(), null, true);
+		tauntTraceSupport.spawnDustBeaconColumn(context.player(), 70L, new Particle.DustOptions(org.bukkit.Color.AQUA, 1.35f), 5, 0.09, 24.0);
+		tauntTraceSupport.spawnDustBeaconColumn(context.player(), 70L, new Particle.DustOptions(org.bukkit.Color.fromRGB(180, 80, 255), 1.25f), 4, 0.12, 24.0);
 		tauntTraceSupport.pulseSeekerAudio(context.arena(), tauntLoc, Sound.BLOCK_BELL_RESONATE, 0.8f, 1.6f);
 
-		context.player().sendMessage(Component.text("发动了 尖叫嘲讽！远处也能看到你的动静，积分 +" + scoreReward, NamedTextColor.GOLD));
-		HiderSkillSupport.applySharedTauntCooldownAndReward(context, 20, scoreReward);
+		context.player().sendMessage(Component.text("发动了 尖叫嘲讽！彩色光柱会把你的方位暴露出去，积分 +" + scoreReward, NamedTextColor.GOLD));
+		HiderSkillSupport.healPlayerFromTaunt(context, healAmount, "尖叫嘲讽", NamedTextColor.GOLD);
+		HiderSkillSupport.broadcastTaunt(context, "【尖叫嘲讽】", NamedTextColor.GOLD);
+		HiderSkillSupport.applySharedTauntCooldownAndReward(context, cooldownSeconds, scoreReward);
 	}
 }

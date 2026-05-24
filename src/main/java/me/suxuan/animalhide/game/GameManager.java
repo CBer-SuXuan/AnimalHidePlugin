@@ -3,18 +3,14 @@ package me.suxuan.animalhide.game;
 import lombok.Getter;
 import me.suxuan.animalhide.AnimalHidePlugin;
 import me.suxuan.animalhide.config.ConfigManager;
-import me.suxuan.animalhide.game.runtime.LobbyCountdownService;
-import me.suxuan.animalhide.game.runtime.MatchResultService;
-import me.suxuan.animalhide.game.runtime.MatchTimerService;
-import me.suxuan.animalhide.game.runtime.PlayerStateService;
-import me.suxuan.animalhide.game.runtime.RoleConversionService;
-import me.suxuan.animalhide.game.runtime.RoleSetupService;
+import me.suxuan.animalhide.game.runtime.*;
 import me.suxuan.animalhide.manager.DisguiseManager;
 import me.suxuan.slimearena.api.ArenaManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.*;
-import org.bukkit.entity.Entity;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 import java.util.*;
@@ -96,7 +92,6 @@ public class GameManager {
 
 			ArenaTemplate template = new ArenaTemplate(name, templateName, queueRoom, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, phaseWall, aiAnimalCount, scoring);
 			templates.put(name, template);
-			plugin.getComponentLogger().info("已加载竞技场模板: {}", name);
 		}
 	}
 
@@ -147,13 +142,12 @@ public class GameManager {
 					return;
 				}
 				queueMatch.setCurrentWorld(world);
+				plugin.getTutorialManager().spawnQueueTutorial(queueMatch);
 				queueMatch.setState(GameState.WAITING);
-				for (UUID uuid : new ArrayList<>(queueMatch.getPlayers())) {
-					Player p = Bukkit.getPlayer(uuid);
-					if (p != null) queueMatch.teleportAndInitPlayer(p);
-				}
+				initializeQueuePlayersSequentially(queueMatch, new ArrayList<>(queueMatch.getPlayers()));
 			});
 		}).exceptionally(ex -> {
+
 			Bukkit.getScheduler().runTask(plugin, () -> abortArenaCreation(queueMatch, Component.text("队列房创建失败，请稍后再试！", NamedTextColor.RED)));
 			return null;
 		});
@@ -202,10 +196,7 @@ public class GameManager {
 				newMatch.setCurrentWorld(world);
 				newMatch.setState(GameState.WAITING);
 
-				for (UUID uuid : new ArrayList<>(newMatch.getPlayers())) {
-					Player p = Bukkit.getPlayer(uuid);
-					if (p != null) newMatch.teleportAndInitPlayer(p);
-				}
+				initializePlayersSequentially(newMatch, new ArrayList<>(newMatch.getPlayers()), 1L);
 			});
 		}).exceptionally(ex -> {
 			Bukkit.getScheduler().runTask(plugin, () -> {
@@ -214,6 +205,52 @@ public class GameManager {
 			});
 			return null;
 		});
+	}
+
+	private void initializeQueuePlayersSequentially(Arena arena, List<UUID> playerIds) {
+		initializePlayersSequentially(arena, playerIds, 2L);
+	}
+
+	private void autoJoinQueueSequentially(List<UUID> playerIds, long intervalTicks) {
+		if (playerIds == null || playerIds.isEmpty()) {
+			return;
+		}
+
+		long delay = 0L;
+		for (UUID uuid : playerIds) {
+			Bukkit.getScheduler().runTaskLater(plugin, () -> {
+				Player player = Bukkit.getPlayer(uuid);
+				if (player == null || !player.isOnline()) {
+					return;
+				}
+				autoJoinQueue(player);
+			}, delay);
+			delay += Math.max(1L, intervalTicks);
+		}
+	}
+
+	private void initializePlayersSequentially(Arena arena, List<UUID> playerIds, long intervalTicks) {
+		if (arena == null || playerIds == null || playerIds.isEmpty()) {
+			return;
+		}
+
+		long delay = 0L;
+		for (UUID uuid : playerIds) {
+			Bukkit.getScheduler().runTaskLater(plugin, () -> {
+				if (!activeMatches.contains(arena) || arena.getCurrentWorld() == null) {
+					return;
+				}
+				if (!arena.getPlayers().contains(uuid)) {
+					return;
+				}
+				Player player = Bukkit.getPlayer(uuid);
+				if (player == null || !player.isOnline()) {
+					return;
+				}
+				arena.teleportAndInitPlayer(player);
+			}, delay);
+			delay += Math.max(1L, intervalTicks);
+		}
 	}
 
 	/**
@@ -313,6 +350,7 @@ public class GameManager {
 			return;
 		}
 		lobbyCountdownService.cancelLobbyCountdown(arena);
+		arena.setFinalRevealActive(false);
 		arena.setState(GameState.PLAYING);
 
 		int animalVotes = arena.getModeVoteCount(ArenaMode.ANIMAL);
@@ -458,12 +496,7 @@ public class GameManager {
 	 */
 	public void endGame(Arena arena, PlayerRole winner) {
 		matchResultService.endGame(arena, winner, finishedArena -> {
-			for (UUID uuid : new ArrayList<>(finishedArena.getPlayers())) {
-				Player player = Bukkit.getPlayer(uuid);
-				if (player != null) {
-					Bukkit.getScheduler().runTaskLater(plugin, () -> autoJoinQueue(player), 2L);
-				}
-			}
+			autoJoinQueueSequentially(new ArrayList<>(finishedArena.getPlayers()), 2L);
 			destroyArenaMatch(finishedArena);
 		});
 	}
@@ -478,6 +511,7 @@ public class GameManager {
 		// 1. 从活跃对局列表中移除，停止一切该房间的业务逻辑
 		activeMatches.remove(match);
 		World oldWorld = match.getCurrentWorld();
+		plugin.getTutorialManager().clearQueueTutorial(oldWorld);
 
 		if (oldWorld != null) {
 			String worldName = oldWorld.getName();
@@ -569,15 +603,17 @@ public class GameManager {
 	 */
 	private void abortArenaCreation(Arena match, Component message) {
 		activeMatches.remove(match);
+		List<UUID> playersToRequeue = new ArrayList<>();
 		for (UUID uuid : new ArrayList<>(match.getPlayers())) {
 			Player p = Bukkit.getPlayer(uuid);
 			if (p != null) {
 				resetPlayerData(p, match);
 				AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(p);
 				p.sendMessage(message);
-				Bukkit.getScheduler().runTaskLater(plugin, () -> autoJoinQueue(p), 2L);
+				playersToRequeue.add(uuid);
 			}
 		}
+		autoJoinQueueSequentially(playersToRequeue, 2L);
 		match.getPlayers().clear();
 		destroyArenaMatch(match);
 	}

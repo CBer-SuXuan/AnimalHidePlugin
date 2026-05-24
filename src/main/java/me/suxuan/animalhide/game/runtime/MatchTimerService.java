@@ -125,6 +125,7 @@ public class MatchTimerService {
 				if (timeLeft > 0) {
 					arena.setTimeLeft(timeLeft);
 					updateBossBar(timeBar, timeLeft, durationSeconds);
+					activateFinalRevealIfNeeded(arena, timeLeft);
 					int elapsed = durationSeconds - timeLeft;
 					applySurvivalReward(arena, survivalReward, survivalInterval, elapsed);
 					replenishHiderArrows(arena, elapsed);
@@ -144,6 +145,31 @@ public class MatchTimerService {
 			timeBar.name(Component.text("⏳ 游戏剩余时间: " + timeLeft + " 秒", NamedTextColor.RED));
 		} else {
 			timeBar.name(Component.text("⏳ 游戏剩余时间: " + timeLeft + " 秒", NamedTextColor.WHITE));
+		}
+	}
+
+	private void activateFinalRevealIfNeeded(Arena arena, int timeLeft) {
+		if (timeLeft > 30 || arena.isFinalRevealActive()) {
+			return;
+		}
+
+		arena.setFinalRevealActive(true);
+		arena.broadcast(Component.text("⚠ 最后 30 秒！所有寻找者与躲藏者已互相暴露！", NamedTextColor.GOLD));
+		Component actionBar = Component.text("最后 30 秒：全员发光，位置互相暴露！", NamedTextColor.RED);
+		int effectDurationTicks = Math.max(40, (timeLeft + 1) * 20);
+		for (UUID id : arena.getSeekers()) {
+			Player seeker = Bukkit.getPlayer(id);
+			if (seeker == null || !seeker.isOnline()) continue;
+			seeker.addPotionEffect(new org.bukkit.potion.PotionEffect(PotionEffectType.GLOWING, effectDurationTicks, 0, false, false, false));
+			seeker.sendActionBar(actionBar);
+		}
+
+		for (UUID id : arena.getHiders()) {
+			Player hider = Bukkit.getPlayer(id);
+			if (hider == null || !hider.isOnline()) continue;
+			hider.addPotionEffect(new org.bukkit.potion.PotionEffect(PotionEffectType.GLOWING, effectDurationTicks, 0, false, false, false));
+			plugin.getDisguiseManager().setDisguiseGlowingState(hider, true);
+			hider.sendActionBar(actionBar);
 		}
 	}
 

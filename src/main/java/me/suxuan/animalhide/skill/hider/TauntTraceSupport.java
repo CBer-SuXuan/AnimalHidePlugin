@@ -191,6 +191,26 @@ public class TauntTraceSupport {
 		}.runTaskTimer(plugin, 0L, 5L);
 	}
 
+	public void spawnDustBeaconColumn(Player player, long durationTicks, Particle.DustOptions dust, int count, double spread, double maxHeight) {
+		new BukkitRunnable() {
+			long lived = 0;
+
+			@Override
+			public void run() {
+				if (lived >= durationTicks || !player.isOnline()) {
+					cancel();
+					return;
+				}
+				Location at = player.getLocation();
+				World world = at.getWorld();
+				for (double y = 0.5; y <= maxHeight; y += 0.75) {
+					world.spawnParticle(Particle.DUST, at.clone().add(0, y, 0), count, spread, 0.05, spread, 0, dust);
+				}
+				lived += 5;
+			}
+		}.runTaskTimer(plugin, 0L, 5L);
+	}
+
 	public void spawnPartyBurst(Player player, long durationTicks) {
 		new BukkitRunnable() {
 			long lived = 0;

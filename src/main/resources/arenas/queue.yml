@@ -11,6 +11,30 @@ locations:
     max: { x: 0, y: 64, z: 0 }
   ai-spawns: { }
 
+tutorial:
+  stations:
+    safe-taunt: { x: 77.5, y: 1.0, z: 154.5, yaw: 90.0, pitch: 3.0 }
+    risky-taunt: { x: 77.5, y: 1.3, z: 156.5, yaw: 90.0, pitch: 3.0 }
+    firework-taunt: { x: 77.5, y: 1.0, z: 158.5, yaw: 90.0, pitch: 3.0 }
+    dangerous-taunt: { x: 77.5, y: 1.3, z: 160.5, yaw: 90.0, pitch: 3.0 }
+    disguise-wand: { x: 77.5, y: 1.0, z: 162.5, yaw: 90.0, pitch: 3.0 }
+    hider-bow: { x: 77.5, y: 1.3, z: 164.5, yaw: 90, pitch: 3.0 }
+    seeker-kit: { x: 71.5, y: 1.0, z: 154.5, yaw: -90, pitch: 3.0 }
+    explosive-sheep: { x: 71.5, y: 1.3, z: 156.5, yaw: -90, pitch: 3.0 }
+  hints:
+    hider:
+      left: { x: 71.5, y: 3.9, z: 164.5, yaw: -90, pitch: 3.0 }
+    seeker:
+      right: { x: 71.5, y: 2.6, z: 166.5, yaw: -90, pitch: 3.0 }
+    overview:
+      center: { x: 74.5, y: 3.9, z: 168.5, yaw: 180, pitch: 0.0 }
+    decoy:
+      left: { x: 71.5, y: 2.6, z: 158.5, yaw: -90.0, pitch: 3.0 }
+    invisibility:
+      mid: { x: 71.5, y: 3.9, z: 160.5, yaw: -90.0, pitch: 3.0 }
+    compass:
+      right: { x: 71.5, y: 2.6, z: 162.0, yaw: -90, pitch: 3.0 }
+
 # queue 房自己的等待规则与人数限制
 settings:
   min-players: 4
@@ -33,8 +57,20 @@ scoring:
   hider-win: 20
   hider-survival-reward: 1
   hider-survival-interval: 15
-  taunt-safe: 2
-  taunt-risky: 4
-  taunt-firework: 7
-  taunt-dangerous: 10
+  taunt-poop: 2
+  taunt-stinky: 4
+  taunt-scream: 7
+  taunt-party: 10
   seeker-pickup-poop: 1
+
+taunt-cooldowns:
+  poop: 5
+  stinky: 15
+  scream: 30
+  party: 50
+
+taunt-heal:
+  poop: 1.0
+  stinky: 2.0
+  scream: 3.0
+  party: 4.0

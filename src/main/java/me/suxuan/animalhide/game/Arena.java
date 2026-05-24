@@ -37,6 +37,7 @@ public class Arena {
 	private GameState state;
 	private BossBar timeBar;
 	private int timeLeft = 0;
+	private boolean finalRevealActive = false;
 	/**
 	 * 大厅 STARTING 阶段的倒计时任务
 	 */
@@ -156,10 +157,13 @@ public class Arena {
 	}
 
 	public void teleportAndInitPlayer(Player player) {
-		player.teleportAsync(getWaitingLobby());
 		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + getMaxPlayers() + ")"));
 		gameManager.resetPlayerDataWithoutLobby(player, this);
 		giveLobbyItems(player);
+		Location waitingLobby = getWaitingLobby();
+		if (waitingLobby != null) {
+			player.teleportAsync(waitingLobby);
+		}
 		if (template.isQueueRoom()) {
 			player.sendMessage(Component.text("你已进入匹配队列房，倒计时结束后将随机进入正式地图。", NamedTextColor.AQUA));
 		}

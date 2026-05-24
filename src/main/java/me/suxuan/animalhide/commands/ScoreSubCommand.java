@@ -193,6 +193,7 @@ public class ScoreSubCommand implements SubCommand {
 		sender.sendMessage(Component.text("/hide score list  <地图>", NamedTextColor.AQUA));
 		sender.sendMessage(Component.text("/hide score set   <地图> <key> <value>", NamedTextColor.AQUA));
 		sender.sendMessage(Component.text("/hide score reset <地图>", NamedTextColor.AQUA));
+		sender.sendMessage(Component.text("新版嘲讽 key: taunt-poop, taunt-stinky, taunt-scream, taunt-party", NamedTextColor.GRAY));
 	}
 
 	@Override

@@ -14,15 +14,36 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.Bukkit;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.scheduler.BukkitTask;
 
 public class GameRuleListener implements Listener {
 
+	private static final double QUEUE_VOID_Y_THRESHOLD_OFFSET = 8.0;
+	private static final long QUEUE_VOID_CHECK_PERIOD_TICKS = 10L;
+	private static final long HIDER_WATER_GLOW_CHECK_PERIOD_TICKS = 10L;
+
 	private final GameManager gameManager;
+	private final BukkitTask queueVoidCheckTask;
+	private final BukkitTask hiderWaterGlowCheckTask;
 
 	public GameRuleListener(GameManager gameManager) {
 		this.gameManager = gameManager;
+		this.queueVoidCheckTask = Bukkit.getScheduler().runTaskTimer(
+				me.suxuan.animalhide.AnimalHidePlugin.getInstance(),
+				this::checkQueuePlayersBelowVoid,
+				QUEUE_VOID_CHECK_PERIOD_TICKS,
+				QUEUE_VOID_CHECK_PERIOD_TICKS
+		);
+		this.hiderWaterGlowCheckTask = Bukkit.getScheduler().runTaskTimer(
+				me.suxuan.animalhide.AnimalHidePlugin.getInstance(),
+				this::checkHiderWaterGlow,
+				HIDER_WATER_GLOW_CHECK_PERIOD_TICKS,
+				HIDER_WATER_GLOW_CHECK_PERIOD_TICKS
+		);
 	}
 
 	/**
@@ -132,7 +153,7 @@ public class GameRuleListener implements Listener {
 			return;
 		}
 
-		if (arena.getTemplate().isQueueRoom() && event.getCause() == EntityDamageEvent.DamageCause.VOID) {
+		if (arena.getTemplate().isQueueRoom() && player.getLocation().getY() <= player.getWorld().getMinHeight() - 8) {
 			event.setCancelled(true);
 			if (arena.getWaitingLobby() != null) {
 				player.teleportAsync(arena.getWaitingLobby());
@@ -144,6 +165,39 @@ public class GameRuleListener implements Listener {
 		if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK &&
 				event.getCause() != EntityDamageEvent.DamageCause.PROJECTILE) {
 			event.setCancelled(true);
+		}
+	}
+
+	private void checkQueuePlayersBelowVoid() {
+		for (Arena arena : gameManager.getActiveMatches()) {
+			if (!arena.getTemplate().isQueueRoom()) continue;
+			if (arena.getWaitingLobby() == null) continue;
+
+			for (java.util.UUID uuid : arena.getPlayers()) {
+				Player player = Bukkit.getPlayer(uuid);
+				if (player == null || !player.isOnline()) continue;
+				if (player.getLocation().getY() > player.getWorld().getMinHeight() - QUEUE_VOID_Y_THRESHOLD_OFFSET) continue;
+
+				player.teleportAsync(arena.getWaitingLobby());
+				player.setFallDistance(0f);
+				player.sendActionBar(Component.text("已将你传回队列出生点。", NamedTextColor.YELLOW));
+			}
+		}
+	}
+
+	private void checkHiderWaterGlow() {
+		for (Arena arena : gameManager.getActiveMatches()) {
+			if (arena.getState() != GameState.PLAYING) continue;
+
+			for (java.util.UUID uuid : arena.getHiders()) {
+				Player player = Bukkit.getPlayer(uuid);
+				if (player == null || !player.isOnline()) continue;
+
+				boolean shouldGlow = me.suxuan.animalhide.AnimalHidePlugin.getInstance()
+						.getDisguiseManager()
+						.shouldKeepDisguiseGlowing(player);
+				me.suxuan.animalhide.AnimalHidePlugin.getInstance().getDisguiseManager().setDisguiseGlowingState(player, shouldGlow);
+			}
 		}
 	}
 
@@ -208,6 +262,17 @@ public class GameRuleListener implements Listener {
 				}
 			}
 		}
+	}
+
+	@EventHandler
+	public void onPlayerRespawn(PlayerRespawnEvent event) {
+		Player player = event.getPlayer();
+		Arena arena = gameManager.getArenaByPlayer(player);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getSeekers().contains(player.getUniqueId())) return;
+		if (arena.getSeekerSpawn() == null) return;
+
+		event.setRespawnLocation(arena.getSeekerSpawn());
 	}
 
 	/**

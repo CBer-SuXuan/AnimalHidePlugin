@@ -139,7 +139,7 @@ public class AISpawnManager {
 			}
 		} else if (entity instanceof Cat cat) {
 			try {
-				cat.setCatType(Registry.CAT_VARIANT.get(NamespacedKey.minecraft("tabby")));
+				cat.setCatType(Registry.CAT_VARIANT.get(NamespacedKey.minecraft("white")));
 			} catch (Throwable ignored) {
 			}
 		}

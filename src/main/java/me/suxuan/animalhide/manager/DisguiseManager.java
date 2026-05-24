@@ -44,6 +44,7 @@ public class DisguiseManager {
 
 	private final AnimalHidePlugin plugin;
 	private final Map<UUID, Long> temporaryDisguiseInvisibleUntil = new HashMap<>();
+	private final Map<UUID, Long> temporaryDisguiseGlowingUntil = new HashMap<>();
 	private BukkitTask chickenFlapTask;
 
 	public DisguiseManager(AnimalHidePlugin plugin) {
@@ -56,6 +57,7 @@ public class DisguiseManager {
 			chickenFlapTask.cancel();
 		}
 		temporaryDisguiseInvisibleUntil.clear();
+		temporaryDisguiseGlowingUntil.clear();
 	}
 
 	/**
@@ -207,6 +209,83 @@ public class DisguiseManager {
 		player.removePotionEffect(PotionEffectType.INVISIBILITY);
 	}
 
+	public boolean setDisguiseGlowing(Player player, int durationTicks) {
+		if (!player.isOnline() || !DisguiseAPI.isDisguised(player)) {
+			return false;
+		}
+		Disguise disguise = DisguiseAPI.getDisguise(player);
+		if (disguise == null || !(disguise.getWatcher() instanceof LivingWatcher watcher)) {
+			return false;
+		}
+
+		watcher.setGlowing(true);
+		watcher.rebuildWatchableObjects();
+		long glowingUntil = System.currentTimeMillis() + durationTicks * 50L;
+		temporaryDisguiseGlowingUntil.put(player.getUniqueId(), glowingUntil);
+		Bukkit.getScheduler().runTaskLater(plugin, () -> {
+			Long activeUntil = temporaryDisguiseGlowingUntil.get(player.getUniqueId());
+			if (activeUntil != null && activeUntil <= System.currentTimeMillis()) {
+				temporaryDisguiseGlowingUntil.remove(player.getUniqueId());
+			}
+			if (!player.isOnline() || !DisguiseAPI.isDisguised(player)) return;
+			Disguise current = DisguiseAPI.getDisguise(player);
+			if (current == null || !(current.getWatcher() instanceof LivingWatcher currentWatcher)) return;
+			if (shouldKeepDisguiseGlowing(player)) {
+				currentWatcher.setGlowing(true);
+				currentWatcher.rebuildWatchableObjects();
+				return;
+			}
+			currentWatcher.setGlowing(false);
+			currentWatcher.rebuildWatchableObjects();
+		}, durationTicks);
+		return true;
+	}
+
+	public boolean setDisguiseGlowingState(Player player, boolean glowing) {
+		if (!player.isOnline() || !DisguiseAPI.isDisguised(player)) {
+			return false;
+		}
+		Disguise disguise = DisguiseAPI.getDisguise(player);
+		if (disguise == null || !(disguise.getWatcher() instanceof LivingWatcher watcher)) {
+			return false;
+		}
+
+		watcher.setGlowing(glowing);
+		watcher.rebuildWatchableObjects();
+		return true;
+	}
+
+	public boolean shouldKeepDisguiseGlowing(Player player) {
+		if (player == null || !player.isOnline()) {
+			return false;
+		}
+
+		Arena arena = plugin.getGameManager().getArenaByPlayer(player);
+		if (arena == null || arena.getState() != GameState.PLAYING) {
+			return false;
+		}
+		if (!arena.getHiders().contains(player.getUniqueId())) {
+			return false;
+		}
+		if (arena.isFinalRevealActive()) {
+			return true;
+		}
+		Long glowingUntil = temporaryDisguiseGlowingUntil.get(player.getUniqueId());
+		if (glowingUntil != null) {
+			if (glowingUntil > System.currentTimeMillis()) {
+				return true;
+			}
+			temporaryDisguiseGlowingUntil.remove(player.getUniqueId());
+		}
+		if (player.isInWater()) {
+			return true;
+		}
+
+		Material feet = player.getLocation().getBlock().getType();
+		Material eye = player.getEyeLocation().getBlock().getType();
+		return feet == Material.WATER || eye == Material.WATER;
+	}
+
 	public void disguisePlayerAsEntity(Player player, Entity targetEntity) {
 		DisguiseType type = DisguiseType.getType(targetEntity.getType());
 		if (!type.isMob()) {
@@ -242,7 +321,7 @@ public class DisguiseManager {
 
 			case Cat catTarget when watcher instanceof CatWatcher catWatcher -> {
 				try {
-					catWatcher.setType(catTarget.getCatType());
+					catWatcher.setType(org.bukkit.Registry.CAT_VARIANT.get(org.bukkit.NamespacedKey.minecraft("white")));
 				} catch (Throwable ignored) {
 				}
 			}

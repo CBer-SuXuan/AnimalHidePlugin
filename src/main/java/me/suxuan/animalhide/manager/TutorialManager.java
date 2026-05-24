@@ -1,7 +1,11 @@
 package me.suxuan.animalhide.manager;
 
 import me.suxuan.animalhide.AnimalHidePlugin;
+import me.suxuan.animalhide.game.Arena;
+import me.suxuan.animalhide.game.ScoringConfig;
+import me.suxuan.animalhide.skill.hider.HiderSkillSupport;
 import me.suxuan.animalhide.tutorial.DemoStation;
+import me.suxuan.animalhide.tutorial.QueueTutorialText;
 import me.suxuan.animalhide.tutorial.TutorialDemo;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.*;
@@ -11,7 +15,10 @@ import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.EulerAngle;
+import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
+import org.joml.AxisAngle4f;
+import org.joml.Vector3f;
 
 import java.util.*;
 
@@ -41,8 +48,16 @@ import java.util.*;
 public class TutorialManager {
 
 	private static final String ROOT_TAG = "animalhide_tutorial";
+	private static final String QUEUE_ROOT_TAG = "animalhide_tutorial_queue";
 	private static final String CONFIG_KEY = "tutorial-stations";
 	private static final String LEGACY_CONFIG_KEY = "tutorial-npcs";
+	private static final Transformation SMALL_TEXT_TRANSFORMATION = new Transformation(
+			new Vector3f(0f, 0f, 0f),
+			new AxisAngle4f(),
+			new Vector3f(0.68f, 0.68f, 0.68f),
+			new AxisAngle4f()
+	);
+	private static final Display.Brightness BRIGHT_TEXT_BRIGHTNESS = new Display.Brightness(15, 15);
 
 	/**
 	 * 变身魔杖演示桩循环展示的伪装形态池。
@@ -55,6 +70,8 @@ public class TutorialManager {
 	private final AnimalHidePlugin plugin;
 	private final Random random = new Random();
 	private final Map<String, DemoStation> stations = new LinkedHashMap<>();
+	private final Map<String, List<DemoStation>> queueStations = new HashMap<>();
+	private final Map<String, List<QueueTutorialText>> queueTexts = new HashMap<>();
 	private int disguiseCycleCursor = 0;
 
 	public TutorialManager(AnimalHidePlugin plugin) {
@@ -120,10 +137,101 @@ public class TutorialManager {
 	public void shutdown() {
 		for (DemoStation s : stations.values()) s.destroy();
 		stations.clear();
+		for (String worldName : new ArrayList<>(queueStations.keySet())) {
+			clearQueueTutorial(worldName);
+		}
+		for (String worldName : new ArrayList<>(queueTexts.keySet())) {
+			clearQueueTutorial(worldName);
+		}
 	}
 
 	public Collection<DemoStation> getStations() {
 		return Collections.unmodifiableCollection(stations.values());
+	}
+
+	public void spawnQueueTutorial(Arena arena) {
+		if (arena == null || arena.getCurrentWorld() == null) return;
+		if (!arena.getTemplate().isQueueRoom()) return;
+		if (!plugin.getConfigManager().isQueueTutorialEnabled()) {
+			return;
+		}
+
+		String worldName = arena.getCurrentWorld().getName();
+		clearQueueTutorial(worldName);
+
+		org.bukkit.configuration.file.FileConfiguration arenaConfig = plugin.getConfigManager().getArenaConfigs().get(arena.getArenaName());
+		if (arenaConfig == null) {
+			return;
+		}
+
+		ConfigurationSection stationSec = arenaConfig.getConfigurationSection("tutorial.stations");
+		if (stationSec != null) {
+			List<DemoStation> createdStations = new ArrayList<>();
+			for (String demoId : stationSec.getKeys(false)) {
+				TutorialDemo demo = TutorialDemo.fromId(demoId);
+				if (demo == null) {
+					continue;
+				}
+				ConfigurationSection demoSec = stationSec.getConfigurationSection(demoId);
+				Location loc = plugin.getConfigManager().getDynamicLocation(demoSec);
+				if (loc == null) {
+					continue;
+				}
+				loc.setWorld(arena.getCurrentWorld());
+				DemoStation station = createStation("queue-" + worldName + "-" + demo.getId(), demo, loc, true, worldName);
+				if (station != null) {
+					createdStations.add(station);
+				}
+			}
+			if (!createdStations.isEmpty()) {
+				queueStations.put(worldName, createdStations);
+			}
+		}
+
+		ConfigurationSection hintsSec = arenaConfig.getConfigurationSection("tutorial.hints");
+		if (hintsSec != null) {
+			List<QueueTutorialText> createdTexts = new ArrayList<>();
+			for (String hintKey : hintsSec.getKeys(false)) {
+				ConfigurationSection group = hintsSec.getConfigurationSection(hintKey);
+				if (group == null) {
+					continue;
+				}
+				for (String nodeId : group.getKeys(false)) {
+					ConfigurationSection node = group.getConfigurationSection(nodeId);
+					if (node == null) {
+						continue;
+					}
+					Location loc = plugin.getConfigManager().getDynamicLocation(node);
+					if (loc == null) {
+						continue;
+					}
+					loc.setWorld(arena.getCurrentWorld());
+					QueueTutorialText text = createQueueHintText(worldName, hintKey, nodeId, loc);
+					if (text != null) {
+						createdTexts.add(text);
+					}
+				}
+			}
+			if (!createdTexts.isEmpty()) {
+				queueTexts.put(worldName, createdTexts);
+			}
+		}
+	}
+
+	public void clearQueueTutorial(World world) {
+		if (world == null) return;
+		clearQueueTutorial(world.getName());
+	}
+
+	public void clearQueueTutorial(String worldName) {
+		List<DemoStation> stationList = queueStations.remove(worldName);
+		if (stationList != null) {
+			for (DemoStation station : stationList) station.destroy();
+		}
+		List<QueueTutorialText> textList = queueTexts.remove(worldName);
+		if (textList != null) {
+			for (QueueTutorialText text : textList) text.destroy();
+		}
 	}
 
 	// =====================================================================
@@ -131,6 +239,10 @@ public class TutorialManager {
 	// =====================================================================
 
 	private DemoStation createStation(String id, TutorialDemo demo, Location loc) {
+		return createStation(id, demo, loc, false, null);
+	}
+
+	private DemoStation createStation(String id, TutorialDemo demo, Location loc, boolean queueTutorial, String worldName) {
 		World world = loc.getWorld();
 		if (world == null) {
 			plugin.getComponentLogger().warn("无法在 null 世界生成演示桩 {}", id);
@@ -142,8 +254,9 @@ public class TutorialManager {
 			plugin.getComponentLogger().warn("生成演示桩 {} 的载体失败 (demo={})", id, demo.name());
 			return null;
 		}
+		applyQueueTag(carrier, queueTutorial, worldName);
 
-		TextDisplay hologram = spawnHologram(loc, demo);
+		TextDisplay hologram = spawnHologram(loc, demo, queueTutorial, worldName);
 		return new DemoStation(id, demo, loc, carrier, hologram);
 	}
 
@@ -190,8 +303,6 @@ public class TutorialManager {
 			eq.setItemInMainHand(new ItemStack(demo.getHeldItem()));
 			if (demo == TutorialDemo.SEEKER_KIT) {
 				eq.setItemInOffHand(new ItemStack(Material.BOW));
-				eq.setHelmet(new ItemStack(Material.IRON_HELMET));
-				eq.setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
 			} else if (demo == TutorialDemo.HIDER_BOW) {
 				eq.setItemInOffHand(new ItemStack(Material.ARROW, 5));
 			}
@@ -203,27 +314,30 @@ public class TutorialManager {
 		return stand;
 	}
 
-	private TextDisplay spawnHologram(Location anchor, TutorialDemo demo) {
+	private TextDisplay spawnHologram(Location anchor, TutorialDemo demo, boolean queueTutorial, String worldName) {
 		double yOffset = demo.getCarrier() == TutorialDemo.Carrier.ARMOR_STAND ? 2.55 : 2.05;
 		Location loc = anchor.clone().add(0, yOffset, 0);
 
 		TextDisplay td = loc.getWorld().spawn(loc, TextDisplay.class, t -> {
 			t.setBillboard(Display.Billboard.CENTER);
 			t.setAlignment(TextDisplay.TextAlignment.CENTER);
-			t.setBackgroundColor(Color.fromARGB(170, 0, 0, 0));
-			t.setSeeThrough(false);
-			t.setShadowed(false);
-			t.setLineWidth(360);
-			t.setViewRange(0.6f);
+			t.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
+			t.setSeeThrough(true);
+			t.setShadowed(true);
+			t.setBrightness(BRIGHT_TEXT_BRIGHTNESS);
+			t.setLineWidth(240);
+			t.setViewRange(1.15f);
+			t.setTransformation(SMALL_TEXT_TRANSFORMATION);
 			t.setPersistent(true);
 			t.addScoreboardTag(ROOT_TAG);
 		});
+		applyQueueTag(td, queueTutorial, worldName);
 
 		String raw = String.join("\n",
 				"§7【 " + demo.getCamp().getDisplayName() + " §7】",
-				demo.getTitleLine(),
-				demo.getSubTitleLine(),
-				demo.getHintLine()
+				getDemoTitleLine(demo),
+				getDemoSubTitleLine(demo),
+				getDemoHintLine(demo)
 		);
 		td.text(LegacyComponentSerializer.legacySection().deserialize(raw));
 		return td;
@@ -299,7 +413,7 @@ public class TutorialManager {
 		int total = 0;
 		for (World w : Bukkit.getWorlds()) {
 			for (Entity e : w.getEntities()) {
-				if (e.getScoreboardTags().contains(ROOT_TAG)) {
+				if (e.getScoreboardTags().contains(ROOT_TAG) || e.getScoreboardTags().contains(QUEUE_ROOT_TAG)) {
 					e.remove();
 					total++;
 				}
@@ -320,6 +434,89 @@ public class TutorialManager {
 		}
 	}
 
+	private QueueTutorialText createQueueHintText(String worldName, String hintKey, String nodeId, Location loc) {
+		List<String> lines = new ArrayList<>();
+		String title = plugin.getConfigManager().getQueueTutorialHintTitle(hintKey);
+		if (title != null && !title.isBlank()) {
+			lines.add(title);
+		}
+		lines.addAll(QueueTutorialText.normalizeLines(plugin.getConfigManager().getQueueTutorialHintTemplateLines(hintKey)));
+		if (lines.isEmpty()) {
+			return null;
+		}
+
+		TextDisplay display = loc.getWorld().spawn(loc, TextDisplay.class, t -> {
+			t.setBillboard(plugin.getConfigManager().getQueueTutorialHintBillboard());
+			t.setAlignment(plugin.getConfigManager().getQueueTutorialHintAlignment());
+			t.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
+			t.setSeeThrough(true);
+			t.setShadowed(true);
+			t.setBrightness(BRIGHT_TEXT_BRIGHTNESS);
+			t.setLineWidth(plugin.getConfigManager().getQueueTutorialHintLineWidth());
+			t.setViewRange(Math.max(plugin.getConfigManager().getQueueTutorialHintViewRange(), 1.15f));
+			t.setTransformation(SMALL_TEXT_TRANSFORMATION);
+			t.setPersistent(true);
+			t.addScoreboardTag(ROOT_TAG);
+		});
+		applyQueueTag(display, true, worldName);
+		display.text(LegacyComponentSerializer.legacySection().deserialize(String.join("\n", lines)));
+		return new QueueTutorialText(hintKey + "-" + nodeId, loc, display);
+	}
+
+	private void applyQueueTag(Entity entity, boolean queueTutorial, String worldName) {
+		if (!queueTutorial || worldName == null || worldName.isBlank()) return;
+		entity.addScoreboardTag(QUEUE_ROOT_TAG);
+		entity.addScoreboardTag("animalhide_tutorial_instance_" + worldName);
+	}
+
+	private void spawnTemporaryPoopDisplay(DemoStation station, Location dropLoc, long lifetimeTicks) {
+		ItemDisplay disp = dropLoc.getWorld().spawn(dropLoc, ItemDisplay.class, d -> {
+			d.setItemStack(new ItemStack(Material.COCOA_BEANS));
+			d.setBillboard(Display.Billboard.VERTICAL);
+			d.addScoreboardTag(ROOT_TAG);
+		});
+		station.getExtras().add(disp);
+		Bukkit.getScheduler().runTaskLater(plugin, () -> {
+			if (disp.isValid()) disp.remove();
+			station.getExtras().remove(disp);
+		}, lifetimeTicks);
+	}
+
+	private String getDemoTitleLine(TutorialDemo demo) {
+		return plugin.getConfigManager().getTutorialDemoText(demo.getId(), "title", demo.getDefaultTitleLine());
+	}
+
+	private String getDemoSubTitleLine(TutorialDemo demo) {
+		ScoringConfig scoring = getQueueScoringOrDefault();
+		String queueArenaName = plugin.getConfigManager().getQueueTemplateName();
+		return switch (demo) {
+			case SAFE_TAUNT ->
+					"§f可可豆  §7·  §eCD " + HiderSkillSupport.getPoopTauntCooldownSeconds(queueArenaName) + "s  §7·  §6+" + scoring.getTauntSafe() + "分";
+			case RISKY_TAUNT ->
+					"§f史莱姆球  §7·  §eCD " + HiderSkillSupport.getStinkyTauntCooldownSeconds(queueArenaName) + "s  §7·  §6+" + scoring.getTauntRisky() + "分";
+			case FIREWORK_TAUNT ->
+					"§f山羊角  §7·  §eCD " + HiderSkillSupport.getScreamTauntCooldownSeconds(queueArenaName) + "s  §7·  §6+" + scoring.getTauntFirework() + "分";
+			case DANGEROUS_TAUNT ->
+					"§f烟火之星  §7·  §eCD " + HiderSkillSupport.getPartyTauntCooldownSeconds(queueArenaName) + "s  §7·  §6+" + scoring.getTauntDangerous() + "分";
+			default ->
+					plugin.getConfigManager().getTutorialDemoText(demo.getId(), "subtitle", demo.getDefaultSubTitleLine());
+		};
+	}
+
+	private String getDemoHintLine(TutorialDemo demo) {
+		return switch (demo) {
+			case FIREWORK_TAUNT -> "§7右键释放 · 尖叫大动静 + 彩色光柱直冲天空";
+			case DANGEROUS_TAUNT -> "§c⚠ 连续显眼特效跟随自己 · 自身发光 5 秒";
+			default -> plugin.getConfigManager().getTutorialDemoText(demo.getId(), "hint", demo.getDefaultHintLine());
+		};
+	}
+
+	private ScoringConfig getQueueScoringOrDefault() {
+		org.bukkit.configuration.file.FileConfiguration queueConfig = plugin.getConfigManager().getArenaConfigs().get(plugin.getConfigManager().getQueueTemplateName());
+		if (queueConfig == null) return ScoringConfig.defaults();
+		return ScoringConfig.from(queueConfig.getConfigurationSection("scoring"));
+	}
+
 	private String generateId() {
 		return UUID.randomUUID().toString().substring(0, 8);
 	}
@@ -332,7 +529,6 @@ public class TutorialManager {
 		new BukkitRunnable() {
 			@Override
 			public void run() {
-				if (stations.isEmpty()) return;
 				long now = Bukkit.getCurrentTick();
 				for (DemoStation s : stations.values()) {
 					if (s.getCarrier() == null || !s.getCarrier().isValid()) continue;
@@ -340,6 +536,15 @@ public class TutorialManager {
 
 					runAnimation(s);
 					s.setNextAnimationTick(now + s.getDemo().getAnimationIntervalTicks());
+				}
+				for (List<DemoStation> list : queueStations.values()) {
+					for (DemoStation s : list) {
+						if (s.getCarrier() == null || !s.getCarrier().isValid()) continue;
+						if (now < s.getNextAnimationTick()) continue;
+
+						runAnimation(s);
+						s.setNextAnimationTick(now + s.getDemo().getAnimationIntervalTicks());
+					}
 				}
 			}
 		}.runTaskTimer(plugin, 20L, 5L); // 每 5 tick (1/4 秒) 调度一次
@@ -362,75 +567,111 @@ public class TutorialManager {
 
 	private void playSafeTaunt(DemoStation s) {
 		Entity e = s.getCarrier();
-		Location loc = e.getLocation().add(0, 1.2, 0);
-		loc.getWorld().spawnParticle(Particle.NOTE, loc, 6, 0.4, 0.3, 0.4, 1.0);
-		Sound sound = matchAmbientSound(e.getType(), Sound.ENTITY_PIG_AMBIENT);
-		loc.getWorld().playSound(loc, sound, 0.8f, 1f);
+		Location loc = e.getLocation().add(0, 0.3, 0);
+		World world = loc.getWorld();
+		world.spawnParticle(Particle.FALLING_DUST, loc.clone().add(0, 0.1, 0), 6, 0.18, 0.08, 0.18,
+				Material.BROWN_MUSHROOM_BLOCK.createBlockData());
+		world.spawnParticle(Particle.SPORE_BLOSSOM_AIR, loc.clone().add(0, 0.2, 0), 3, 0.12, 0.08, 0.12, 0.01);
+		world.playSound(loc, matchAmbientSound(e.getType(), Sound.ENTITY_PIG_AMBIENT), 1f, 1f);
+		spawnTemporaryPoopDisplay(s, e.getLocation().add(0.45, 0.15, 0), 30L);
 	}
 
 	private void playRiskyTaunt(DemoStation s) {
 		Entity e = s.getCarrier();
-		Location loc = e.getLocation().add(0, 1.2, 0);
-		Sound[] noisy = {Sound.ENTITY_VILLAGER_NO, Sound.BLOCK_ANVIL_LAND, Sound.ENTITY_DONKEY_ANGRY};
-		loc.getWorld().playSound(loc, noisy[random.nextInt(noisy.length)], 0.6f, 1f);
-		loc.getWorld().spawnParticle(Particle.NOTE, loc, 4, 0.4, 0.3, 0.4, 1.0);
+		Location loc = e.getLocation().add(0, 0.8, 0);
+		World world = loc.getWorld();
+		world.playSound(loc, matchAmbientSound(e.getType(), Sound.ENTITY_COW_AMBIENT), 1.2f, 0.9f);
+		world.playSound(loc, Sound.ENTITY_SLIME_SQUISH, 1f, 0.7f);
+		world.spawnParticle(Particle.FALLING_DUST, loc.clone().add(0, -0.5, 0), 6, 0.18, 0.08, 0.18,
+				Material.BROWN_MUSHROOM_BLOCK.createBlockData());
+		world.spawnParticle(Particle.SPORE_BLOSSOM_AIR, loc.clone().add(0, -0.4, 0), 3, 0.12, 0.08, 0.12, 0.01);
+		spawnTemporaryPoopDisplay(s, e.getLocation().add(0.45, 0.15, 0), 40L);
 
-		// 展示一个"便便"物品 1.5 秒（用 ItemDisplay，不会被拾取/影响世界）
-		Location dropLoc = e.getLocation().add(0.6, 0.4, 0);
-		ItemDisplay disp = loc.getWorld().spawn(dropLoc, ItemDisplay.class, d -> {
-			d.setItemStack(new ItemStack(Material.COCOA_BEANS));
-			d.setBillboard(Display.Billboard.VERTICAL);
-			d.addScoreboardTag(ROOT_TAG);
-		});
-		s.getExtras().add(disp);
-		Bukkit.getScheduler().runTaskLater(plugin, () -> {
-			if (disp.isValid()) disp.remove();
-			s.getExtras().remove(disp);
-		}, 30L);
+		new BukkitRunnable() {
+			int ticks = 0;
+
+			@Override
+			public void run() {
+				if (ticks >= 80 || !e.isValid()) {
+					cancel();
+					return;
+				}
+				Location at = e.getLocation().add(0, 0.8, 0);
+				World w = at.getWorld();
+				w.spawnParticle(Particle.DUST, at, 14, 0.55, 0.35, 0.55,
+						new Particle.DustOptions(Color.fromRGB(121, 173, 84), 1.2f));
+				w.spawnParticle(Particle.SNEEZE, at, 6, 0.4, 0.25, 0.4, 0.01);
+				ticks += 10;
+			}
+		}.runTaskTimer(plugin, 0L, 10L);
 	}
 
 	private void playFireworkTaunt(DemoStation s) {
 		Entity e = s.getCarrier();
-		Firework fw = (Firework) e.getWorld().spawnEntity(e.getLocation(), EntityType.FIREWORK_ROCKET);
-		org.bukkit.inventory.meta.FireworkMeta meta = fw.getFireworkMeta();
-		meta.addEffect(FireworkEffect.builder()
-				.withColor(Color.RED, Color.YELLOW, Color.AQUA)
-				.with(FireworkEffect.Type.BALL_LARGE)
-				.withTrail()
-				.build());
-		meta.setPower(1);
-		fw.setFireworkMeta(meta);
-		fw.setSilent(true);
-		fw.addScoreboardTag(ROOT_TAG);
+		Location loc = e.getLocation();
+		World world = loc.getWorld();
+		world.playSound(loc, matchAmbientSound(e.getType(), Sound.ENTITY_GOAT_SCREAMING_PREPARE_RAM), 2f, 1.2f);
+		world.playSound(loc, Sound.ENTITY_GOAT_SCREAMING_PREPARE_RAM, 1.2f, 1.4f);
+		world.playSound(loc, Sound.BLOCK_BELL_RESONATE, 0.8f, 1.6f);
+
+		new BukkitRunnable() {
+			int lived = 0;
+
+			@Override
+			public void run() {
+				if (lived >= 70 || !e.isValid()) {
+					cancel();
+					return;
+				}
+				Location at = e.getLocation();
+				World w = at.getWorld();
+				for (double y = 0.5; y <= 24.0; y += 0.75) {
+					w.spawnParticle(Particle.DUST, at.clone().add(0, y, 0), 5, 0.09, 0.05, 0.09, 0,
+							new Particle.DustOptions(Color.AQUA, 1.35f));
+					w.spawnParticle(Particle.DUST, at.clone().add(0, y, 0), 4, 0.12, 0.05, 0.12, 0,
+							new Particle.DustOptions(Color.fromRGB(180, 80, 255), 1.25f));
+				}
+				lived += 5;
+			}
+		}.runTaskTimer(plugin, 0L, 5L);
 	}
 
 	private void playDangerousTaunt(DemoStation s) {
 		Entity e = s.getCarrier();
-		World w = e.getWorld();
-		Location center = e.getLocation();
+		Location loc = e.getLocation();
+		World world = loc.getWorld();
+		world.playSound(loc, matchAmbientSound(e.getType(), Sound.ENTITY_CHICKEN_AMBIENT), 2.2f, 1.1f);
+		world.playSound(loc, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1.2f, 1.1f);
+		world.playSound(loc, Sound.BLOCK_NOTE_BLOCK_CHIME, 1.1f, 1.8f);
+		world.playSound(loc, Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.8f);
+		e.setGlowing(true);
+		Bukkit.getScheduler().runTaskLater(plugin, () -> {
+			if (e.isValid()) e.setGlowing(false);
+		}, 60L);
 
-		// 龙吼远低音 + 红色 DUST 圈警告
-		w.playSound(center, Sound.ENTITY_ENDER_DRAGON_GROWL, 0.4f, 1.5f);
-
-		Particle.DustOptions red = new Particle.DustOptions(Color.RED, 1.6f);
 		new BukkitRunnable() {
-			int ticks = 30;
+			int lived = 0;
 
 			@Override
 			public void run() {
-				if (ticks <= 0 || !e.isValid()) {
+				if (lived >= 120 || !e.isValid()) {
 					cancel();
 					return;
 				}
-				double radius = 1.5;
-				for (double t = 0; t < Math.PI * 2; t += Math.PI / 10) {
-					double x = Math.cos(t) * radius;
-					double z = Math.sin(t) * radius;
-					w.spawnParticle(Particle.DUST, center.clone().add(x, 0.1, z), 1, 0, 0, 0, 0, red);
+				Location at = e.getLocation();
+				World w = at.getWorld();
+				w.spawnParticle(Particle.DUST, at.clone().add(0, 1.0, 0), 18, 0.8, 0.4, 0.8,
+						new Particle.DustOptions(Color.FUCHSIA, 1.4f));
+				w.spawnParticle(Particle.DUST, at.clone().add(0, 1.5, 0), 18, 0.8, 0.5, 0.8,
+						new Particle.DustOptions(Color.YELLOW, 1.4f));
+				w.spawnParticle(Particle.HAPPY_VILLAGER, at.clone().add(0, 1.2, 0), 8, 0.75, 0.45, 0.75, 0.01);
+				w.spawnParticle(Particle.NOTE, at.clone().add(0, 2.0, 0), 6, 0.7, 0.4, 0.7, 1);
+				for (double y = 0.5; y <= 3.5; y += 0.5) {
+					w.spawnParticle(Particle.TOTEM_OF_UNDYING, at.clone().add(0, y, 0), 4, 0.12, 0.02, 0.12, 0.01);
 				}
-				ticks -= 4;
+				lived += 8;
 			}
-		}.runTaskTimer(plugin, 0L, 4L);
+		}.runTaskTimer(plugin, 0L, 8L);
 	}
 
 	// ---------------- 变身魔杖（载体循环切换） ----------------
