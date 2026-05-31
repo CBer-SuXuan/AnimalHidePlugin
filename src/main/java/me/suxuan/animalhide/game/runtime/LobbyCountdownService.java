@@ -163,19 +163,19 @@ public class LobbyCountdownService {
 
 	private int getCountdownSeconds(Arena arena) {
 		return Math.max(1, configManager.getArenaConfigs()
-				.get(arena.getArenaName())
+				.get(arena.getTemplate().getConfigKey())
 				.getInt("settings.countdown-seconds", 120));
 	}
 
 	private int getFastCountdownSeconds(Arena arena) {
 		return Math.max(1, configManager.getArenaConfigs()
-				.get(arena.getArenaName())
+				.get(arena.getTemplate().getConfigKey())
 				.getInt("settings.fast-countdown-seconds", 20));
 	}
 
 	private double getFastStartPercent(Arena arena) {
 		return Math.clamp(configManager.getArenaConfigs()
-				.get(arena.getArenaName())
+				.get(arena.getTemplate().getConfigKey())
 				.getDouble("settings.fast-start-percent", 0.8), 0.0, 1.0);
 	}
 

@@ -8,6 +8,7 @@ import me.suxuan.animalhide.hooks.PAPIExpansion;
 import me.suxuan.animalhide.listeners.*;
 import me.suxuan.animalhide.manager.*;
 import me.suxuan.animalhide.skill.SkillManager;
+import me.suxuan.animalhide.skill.hider.TauntTraceSupport;
 import me.suxuan.slimearena.api.ArenaManager;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -28,7 +29,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private AISpawnManager aiSpawnManager;
 	private DecoyManager decoyManager;
 	private MatchAnalyticsManager matchAnalyticsManager;
-	private me.suxuan.animalhide.skill.hider.TauntTraceSupport tauntTraceSupport;
+	private TauntTraceSupport tauntTraceSupport;
 	private SkillManager skillManager;
 
 	private ArenaManager arenaManager;
@@ -73,7 +74,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		aiSpawnManager = new AISpawnManager(this);
 		decoyManager = new DecoyManager(disguiseManager);
 		matchAnalyticsManager = new MatchAnalyticsManager(this);
-		tauntTraceSupport = new me.suxuan.animalhide.skill.hider.TauntTraceSupport(this);
+		tauntTraceSupport = new TauntTraceSupport(this);
 		tauntTraceSupport.start();
 		skillManager = new SkillManager(this);
 		return true;

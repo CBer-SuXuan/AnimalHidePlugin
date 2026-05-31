@@ -12,6 +12,17 @@ prefix: "<gray>[<aqua>动物躲猫猫</aqua>]</gray> "
 match:
   # 对局结束后的场内庆祝结算时长（秒），期间玩家留在地图、禁止互伤，胜利方播放烟花
   settlement-duration-seconds: 8
+  rewards:
+    # 是否在正常对局结算时执行奖励指令；管理员结束不会执行
+    enabled: false
+    commands:
+      # 普通参与奖励：仅发给仍在游戏中且排名不在前三的玩家
+      participation: []
+      # 前三名额外奖励：由控制台执行，不要带 /
+      # 可用占位符: {player}, {uuid}, {rank}, {score}, {kills}, {map}, {winner}
+      top-1: []
+      top-2: []
+      top-3: []
 
 features:
   # 是否启用躲藏者的一次性“伪装隐身”技能

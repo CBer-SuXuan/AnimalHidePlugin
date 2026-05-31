@@ -36,7 +36,7 @@ public class DisguiseWandSkill extends ItemBasedSkill {
 
 		String typeName = target.getType().name();
 		String listKey = (context.arena().getArenaMode() == ArenaMode.ANIMAL) ? "allowed-animals" : "allowed-monsters";
-		List<String> allowed = context.plugin().getConfigManager().getArenaConfigs().get(context.arena().getArenaName()).getStringList(listKey);
+		List<String> allowed = context.plugin().getConfigManager().getArenaConfigs().get(context.arena().getTemplate().getConfigKey()).getStringList(listKey);
 
 		if (allowed.contains(typeName)) {
 			try {

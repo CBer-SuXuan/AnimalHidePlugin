@@ -67,6 +67,7 @@ public class MatchResultService {
 			broadcastTopScores(arena);
 			persistStats(arena, winners);
 			persistMatchAnalytics(arena, winner, winners, finalRevealTriggered, false);
+			executeSettlementRewardCommands(arena, winner);
 			beginSettlementPhase(arena, winner, winners, adminShutdown, afterSettlement);
 		} else {
 			persistMatchAnalytics(arena, winner, winners, finalRevealTriggered, true);
@@ -207,6 +208,58 @@ public class MatchResultService {
 			arena.broadcast(Component.text("      " + rankColor + name + " §f- §a" + score + " 分"));
 		}
 		arena.broadcast(Component.text("=========================", NamedTextColor.YELLOW));
+	}
+
+	private void executeSettlementRewardCommands(Arena arena, PlayerRole winner) {
+		if (!configManager.isMatchRewardsEnabled()) {
+			return;
+		}
+
+		List<UUID> rankedPlayers = getRewardEligiblePlayers(arena);
+		for (int i = 0; i < rankedPlayers.size(); i++) {
+			UUID uuid = rankedPlayers.get(i);
+			Player player = Bukkit.getPlayer(uuid);
+			if (player == null || !player.isOnline()) continue;
+
+			int rank = i + 1;
+			String rewardKey = rank <= 3 ? "top-" + rank : "participation";
+			runRewardCommands(arena, player, winner, rank <= 3 ? rank : 0, rewardKey);
+		}
+	}
+
+	private List<UUID> getRewardEligiblePlayers(Arena arena) {
+		List<UUID> players = new ArrayList<>(arena.getPlayers());
+		players.removeIf(uuid -> arena.getQuitPlayers().contains(uuid) || Bukkit.getPlayer(uuid) == null || !Bukkit.getPlayer(uuid).isOnline());
+		players.sort((a, b) -> Integer.compare(
+				arena.getMatchScores().getOrDefault(b, 0),
+				arena.getMatchScores().getOrDefault(a, 0)
+		));
+		return players;
+	}
+
+	private void runRewardCommands(Arena arena, Player player, PlayerRole winner, int rank, String rewardKey) {
+		List<String> commands = configManager.getMatchRewardCommands(rewardKey);
+		if (commands.isEmpty()) {
+			return;
+		}
+
+		for (String rawCommand : commands) {
+			if (rawCommand == null || rawCommand.isBlank()) continue;
+			String command = applyRewardPlaceholders(arena, player, winner, rank, rawCommand);
+			Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command.startsWith("/") ? command.substring(1) : command);
+		}
+	}
+
+	private String applyRewardPlaceholders(Arena arena, Player player, PlayerRole winner, int rank, String command) {
+		UUID uuid = player.getUniqueId();
+		return command
+				.replace("{player}", player.getName())
+				.replace("{uuid}", uuid.toString())
+				.replace("{rank}", String.valueOf(rank))
+				.replace("{score}", String.valueOf(arena.getMatchScores().getOrDefault(uuid, 0)))
+				.replace("{kills}", String.valueOf(arena.getMatchKills(uuid)))
+				.replace("{map}", arena.getArenaName())
+				.replace("{winner}", winner.name());
 	}
 
 	private void persistStats(Arena arena, Set<UUID> winners) {

@@ -11,6 +11,7 @@ import java.util.List;
  */
 @Getter
 public class ArenaTemplate {
+	private final String configKey; // 对应 arenas/*.yml 的文件名 key
 	private final String mapName;
 	private final String templateName; // 对应的 Slime 模板名
 	private final boolean queueRoom;
@@ -29,10 +30,11 @@ public class ArenaTemplate {
 	// 该地图独立的积分规则
 	private final ScoringConfig scoring;
 
-	public ArenaTemplate(String mapName, String templateName, boolean queueRoom, int minPlayers, int maxPlayers,
+	public ArenaTemplate(String configKey, String mapName, String templateName, boolean queueRoom, int minPlayers, int maxPlayers,
 	                     Location configWaitingLobby, Location configHiderSpawn, Location configSeekerSpawn,
 	                     List<SpawnPoint> configAiSpawns, BlockRegion configPhaseWall, int aiAnimalCount,
 	                     ScoringConfig scoring) {
+		this.configKey = configKey;
 		this.mapName = mapName;
 		this.templateName = templateName;
 		this.queueRoom = queueRoom;

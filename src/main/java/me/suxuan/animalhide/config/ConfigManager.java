@@ -105,6 +105,14 @@ public class ConfigManager {
 		return Math.max(3, Math.min(60, mainConfig.getInt("match.settlement-duration-seconds", 8)));
 	}
 
+	public boolean isMatchRewardsEnabled() {
+		return mainConfig.getBoolean("match.rewards.enabled", false);
+	}
+
+	public List<String> getMatchRewardCommands(String rewardKey) {
+		return mainConfig.getStringList("match.rewards.commands." + rewardKey);
+	}
+
 	public boolean isHiderDisguiseInvisibilityEnabled() {
 		return mainConfig.getBoolean("features.hider-disguise-invisibility", true);
 	}

@@ -54,7 +54,7 @@ public class MatchTimerService {
 					cancel();
 
 					int gameDuration = configManager.getArenaConfigs()
-							.get(arena.getArenaName())
+							.get(arena.getTemplate().getConfigKey())
 							.getInt("settings.game-duration", 300);
 					startGameTimer(arena, gameDuration);
 				}

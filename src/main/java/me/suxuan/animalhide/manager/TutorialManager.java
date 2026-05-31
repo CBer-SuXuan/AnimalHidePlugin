@@ -159,7 +159,7 @@ public class TutorialManager {
 		String worldName = arena.getCurrentWorld().getName();
 		clearQueueTutorial(worldName);
 
-		org.bukkit.configuration.file.FileConfiguration arenaConfig = plugin.getConfigManager().getArenaConfigs().get(arena.getArenaName());
+		org.bukkit.configuration.file.FileConfiguration arenaConfig = plugin.getConfigManager().getArenaConfigs().get(arena.getTemplate().getConfigKey());
 		if (arenaConfig == null) {
 			return;
 		}

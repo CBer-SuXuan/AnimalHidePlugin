@@ -11,6 +11,8 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
 import java.util.*;
@@ -60,11 +62,12 @@ public class GameManager {
 	private void loadTemplates() {
 		templates.clear();
 		String queueTemplateName = configManager.getQueueTemplateName();
-		for (Map.Entry<String, org.bukkit.configuration.file.FileConfiguration> entry : configManager.getArenaConfigs().entrySet()) {
-			String name = entry.getKey();
-			org.bukkit.configuration.file.FileConfiguration config = entry.getValue();
+		for (Map.Entry<String, FileConfiguration> entry : configManager.getArenaConfigs().entrySet()) {
+			String keyName = entry.getKey();
+			FileConfiguration config = entry.getValue();
 
-			String templateName = config.getString("template-name", name);
+			String name = config.getString("name", keyName);
+			String templateName = config.getString("template-name", keyName);
 			int minPlayers = config.getInt("settings.min-players", 2);
 			int maxPlayers = config.getInt("settings.max-players", 12);
 
@@ -72,12 +75,12 @@ public class GameManager {
 			Location hiderSpawn = configManager.getDynamicLocation(config.getConfigurationSection("locations.hider-spawn"));
 			Location seekerSpawn = configManager.getDynamicLocation(config.getConfigurationSection("locations.seeker-spawn"));
 			if (waiting == null || hiderSpawn == null || seekerSpawn == null) {
-				plugin.getComponentLogger().error("竞技场 {} 缺少必要坐标配置，已跳过加载。", name);
+				plugin.getComponentLogger().error("竞技场 {} 缺少必要坐标配置，已跳过加载。", keyName);
 				continue;
 			}
 
 			List<SpawnPoint> aiSpawns = new ArrayList<>();
-			org.bukkit.configuration.ConfigurationSection spawnsSec = config.getConfigurationSection("locations.ai-spawns");
+			ConfigurationSection spawnsSec = config.getConfigurationSection("locations.ai-spawns");
 			if (spawnsSec != null) {
 				for (String key : spawnsSec.getKeys(false)) {
 					SpawnPoint point = configManager.getSpawnPoint(spawnsSec.getConfigurationSection(key));
@@ -90,7 +93,7 @@ public class GameManager {
 			BlockRegion phaseWall = configManager.getPhaseWallRegion(config);
 			boolean queueRoom = configManager.isQueueEnabled() && templateName.equalsIgnoreCase(queueTemplateName);
 
-			ArenaTemplate template = new ArenaTemplate(name, templateName, queueRoom, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, phaseWall, aiAnimalCount, scoring);
+			ArenaTemplate template = new ArenaTemplate(keyName, name, templateName, queueRoom, minPlayers, maxPlayers, waiting, hiderSpawn, seekerSpawn, aiSpawns, phaseWall, aiAnimalCount, scoring);
 			templates.put(name, template);
 		}
 	}
@@ -131,7 +134,7 @@ public class GameManager {
 			}
 		}
 
-		String instanceName = queueTemplate.getMapName() + "_" + UUID.randomUUID().toString().substring(0, 6);
+		String instanceName = queueTemplate.getTemplateName() + "_" + UUID.randomUUID().toString().substring(0, 6);
 		Arena queueMatch = new Arena(this, queueTemplate, instanceName);
 		activeMatches.add(queueMatch);
 		queueMatch.addPlayer(player);
@@ -180,7 +183,7 @@ public class GameManager {
 		}
 
 		// 2. 如果没有可用的房间，或者全都满了/在游戏中，秒开新房！
-		String instanceName = template.getMapName() + "_" + UUID.randomUUID().toString().substring(0, 6);
+		String instanceName = template.getTemplateName() + "_" + UUID.randomUUID().toString().substring(0, 6);
 		Arena newMatch = new Arena(this, template, instanceName);
 		activeMatches.add(newMatch);
 
@@ -366,8 +369,8 @@ public class GameManager {
 			arena.setArenaMode(ArenaMode.ANIMAL);
 		}
 
-		arena.broadcast(Component.text("投票结束！本局最终模式: ", NamedTextColor.YELLOW)
-				.append(Component.text(arena.getArenaMode().getDisplayName(), NamedTextColor.GREEN)));
+//		arena.broadcast(Component.text("投票结束！本局最终模式: ", NamedTextColor.YELLOW)
+//				.append(Component.text(arena.getArenaMode().getDisplayName(), NamedTextColor.GREEN)));
 
 		List<UUID> players = new ArrayList<>(arena.getPlayers());
 
@@ -381,7 +384,7 @@ public class GameManager {
 
 		int total = players.size();
 		double ratio = configManager.getArenaConfigs()
-				.get(arena.getArenaName())
+				.get(arena.getTemplate().getConfigKey())
 				.getDouble("settings.seeker-ratio", 0.2);
 		ratio = Math.clamp(ratio, 0.0, 1.0);
 		int seekerCount = (int) Math.max(1, Math.floor(total * ratio));
@@ -410,7 +413,7 @@ public class GameManager {
 		seekerCount = Math.min(seekerCount, finalSeekerPool.size());
 
 		int hideTime = configManager.getArenaConfigs()
-				.get(arena.getArenaName())
+				.get(arena.getTemplate().getConfigKey())
 				.getInt("settings.preparation-time", 30);
 		int hideTimeTicks = hideTime * 20;
 
@@ -426,7 +429,7 @@ public class GameManager {
 		}
 
 		String listKey = (arena.getArenaMode() == ArenaMode.ANIMAL) ? "allowed-animals" : "allowed-monsters";
-		List<String> allowedEntities = configManager.getArenaConfigs().get(arena.getArenaName()).getStringList(listKey);
+		List<String> allowedEntities = configManager.getArenaConfigs().get(arena.getTemplate().getConfigKey()).getStringList(listKey);
 
 		plugin.getAiSpawnManager().spawnAIEntities(arena, allowedEntities);
 
@@ -644,10 +647,10 @@ public class GameManager {
 
 		ArenaTemplate selected = playableTemplates.get(new Random().nextInt(playableTemplates.size()));
 		List<UUID> queuedPlayers = new ArrayList<>(queueArena.getPlayers());
-		String instanceName = selected.getMapName() + "_" + UUID.randomUUID().toString().substring(0, 6);
+		String instanceName = selected.getTemplateName() + "_" + UUID.randomUUID().toString().substring(0, 6);
 		Arena match = new Arena(this, selected, instanceName);
 		activeMatches.add(match);
-		queueArena.broadcast(Component.text("队列已完成，正在随机前往地图: " + selected.getMapName(), NamedTextColor.GOLD));
+		queueArena.broadcast(Component.text("正在随机前往地图: " + selected.getMapName(), NamedTextColor.GOLD));
 
 		slimeArenaManager.createArenaAsync(selected.getTemplateName(), instanceName).thenAccept(world -> {
 			Bukkit.getScheduler().runTask(plugin, () -> {
@@ -658,7 +661,6 @@ public class GameManager {
 					Player player = Bukkit.getPlayer(uuid);
 					if (player == null) continue;
 					queueArena.getPlayers().remove(uuid);
-					player.sendMessage(Component.text("已从匹配队列前往正式地图: " + selected.getMapName(), NamedTextColor.GOLD));
 					match.addPlayerSilently(player);
 				}
 				queueArena.getPlayers().clear();
