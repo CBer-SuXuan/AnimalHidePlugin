@@ -132,6 +132,16 @@ public class TauntTraceSupport {
 		}
 	}
 
+	public void refreshSeekersToNearestHider(Arena arena) {
+		for (UUID seekerId : arena.getSeekers()) {
+			Player seeker = Bukkit.getPlayer(seekerId);
+			if (seeker == null || !seeker.isOnline()) continue;
+			Location target = getNearestHiderLocation(arena, seeker.getLocation());
+			boolean hasTarget = target != null;
+			seeker.getInventory().setItem(SEEKER_COMPASS_SLOT, createFinalRevealCompass(target, hasTarget));
+		}
+	}
+
 	public void playAnimalSound(SkillContext context, Location at, float volume, float pitch) {
 		Disguise disguise = DisguiseAPI.getDisguise(context.player());
 		if (disguise == null) return;
@@ -293,16 +303,29 @@ public class TauntTraceSupport {
 	}
 
 	private Location getNearestPoopLocation(Arena arena, Location origin) {
-		List<PoopMarker> markers = poopMarkersByArena.get(arenaKey(arena));
-		if (markers == null || markers.isEmpty()) return null;
+		List<PoopMarker> markers = poopMarkersByArena.getOrDefault(arenaKey(arena), List.of());
+		long now = System.currentTimeMillis();
 		return markers.stream()
+				.filter(marker -> marker.expireAt() > now)
 				.filter(marker -> marker.location().getWorld() != null && marker.location().getWorld().equals(origin.getWorld()))
 				.min(Comparator.comparingDouble(marker -> marker.location().distanceSquared(origin)))
 				.map(marker -> marker.location().clone())
 				.orElse(null);
 	}
 
+	private Location getNearestHiderLocation(Arena arena, Location origin) {
+		return arena.getHiders().stream()
+				.map(Bukkit::getPlayer)
+				.filter(player -> player != null && player.isOnline())
+				.map(Player::getLocation)
+				.filter(location -> location.getWorld() != null && location.getWorld().equals(origin.getWorld()))
+				.min(Comparator.comparingDouble(location -> location.distanceSquared(origin)))
+				.map(Location::clone)
+				.orElse(null);
+	}
+
 	private ItemStack createCompass(Location target, boolean hasTarget) {
+
 		ItemStack compass = new ItemStack(Material.COMPASS);
 		CompassMeta meta = (CompassMeta) compass.getItemMeta();
 		meta.displayName(Component.text(hasTarget ? "▶ 寻便指南针 ◀" : "▶ 寻便指南针（暂无目标）◀", hasTarget ? NamedTextColor.GOLD : NamedTextColor.GRAY)
@@ -314,6 +337,28 @@ public class TauntTraceSupport {
 				)
 				: List.of(
 						Component.text("当前场上还没有便便线索", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+				));
+		meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+		if (hasTarget && target != null) {
+			meta.setLodestone(target);
+			meta.setLodestoneTracked(false);
+		}
+		compass.setItemMeta(meta);
+		return compass;
+	}
+
+	private ItemStack createFinalRevealCompass(Location target, boolean hasTarget) {
+		ItemStack compass = new ItemStack(Material.COMPASS);
+		CompassMeta meta = (CompassMeta) compass.getItemMeta();
+		meta.displayName(Component.text(hasTarget ? "▶ 最终追踪指南针 ◀" : "▶ 最终追踪指南针（暂无目标）◀", hasTarget ? NamedTextColor.RED : NamedTextColor.GRAY)
+				.decoration(TextDecoration.ITALIC, false));
+		meta.lore(hasTarget
+				? List.of(
+						Component.text("最后 30 秒：指向最近躲藏者当前位置", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false),
+						Component.text("目标会随躲藏者移动持续刷新", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+				)
+				: List.of(
+						Component.text("当前没有可追踪的躲藏者", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
 				));
 		meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
 		if (hasTarget && target != null) {

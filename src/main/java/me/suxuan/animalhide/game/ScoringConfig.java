@@ -23,6 +23,8 @@ public class ScoringConfig {
 	// 配置项 key 常量（同时作为 yml 节点名）
 	// ============================================================
 	public static final String KEY_SEEKER_KILL_HIDER = "seeker-kill-hider";
+	public static final String KEY_SEEKER_HIT_HIDER = "seeker-hit-hider";
+	public static final String KEY_SEEKER_PLACE_EXPLOSIVE_SHEEP = "seeker-place-explosive-sheep";
 	public static final String KEY_SEEKER_WIN_ORIGINAL = "seeker-win-original";
 	public static final String KEY_SEEKER_WIN_INFECTED = "seeker-win-infected";
 
@@ -45,6 +47,8 @@ public class ScoringConfig {
 	 */
 	public static final List<String> ALL_KEYS = List.of(
 			KEY_SEEKER_KILL_HIDER,
+			KEY_SEEKER_HIT_HIDER,
+			KEY_SEEKER_PLACE_EXPLOSIVE_SHEEP,
 			KEY_SEEKER_WIN_ORIGINAL,
 			KEY_SEEKER_WIN_INFECTED,
 			KEY_HIDER_WIN,
@@ -65,6 +69,8 @@ public class ScoringConfig {
 	static {
 		Map<String, Integer> m = new LinkedHashMap<>();
 		m.put(KEY_SEEKER_KILL_HIDER, 10);
+		m.put(KEY_SEEKER_HIT_HIDER, 5);
+		m.put(KEY_SEEKER_PLACE_EXPLOSIVE_SHEEP, 7);
 		m.put(KEY_SEEKER_WIN_ORIGINAL, 20);
 		m.put(KEY_SEEKER_WIN_INFECTED, 5);
 		m.put(KEY_HIDER_WIN, 20);
@@ -86,6 +92,8 @@ public class ScoringConfig {
 	static {
 		Map<String, String> m = new LinkedHashMap<>();
 		m.put(KEY_SEEKER_KILL_HIDER, "击杀躲藏者");
+		m.put(KEY_SEEKER_HIT_HIDER, "击中躲藏者");
+		m.put(KEY_SEEKER_PLACE_EXPLOSIVE_SHEEP, "放置爆炸绵羊");
 		m.put(KEY_SEEKER_WIN_ORIGINAL, "寻找者胜利-原始寻找者");
 		m.put(KEY_SEEKER_WIN_INFECTED, "寻找者胜利-感染变节者");
 		m.put(KEY_HIDER_WIN, "躲藏者胜利");
@@ -103,6 +111,8 @@ public class ScoringConfig {
 	// 字段
 	// ============================================================
 	private final int seekerKillHider;
+	private final int seekerHitHider;
+	private final int seekerPlaceExplosiveSheep;
 	private final int seekerWinOriginal;
 	private final int seekerWinInfected;
 	private final int hiderWin;
@@ -114,10 +124,12 @@ public class ScoringConfig {
 	private final int tauntDangerous;
 	private final int seekerPickupPoop;
 
-	private ScoringConfig(int seekerKillHider, int seekerWinOriginal, int seekerWinInfected,
+	private ScoringConfig(int seekerKillHider, int seekerHitHider, int seekerPlaceExplosiveSheep, int seekerWinOriginal, int seekerWinInfected,
 	                      int hiderWin, int hiderSurvivalReward, int hiderSurvivalInterval,
 	                      int tauntSafe, int tauntRisky, int tauntFirework, int tauntDangerous, int seekerPickupPoop) {
 		this.seekerKillHider = seekerKillHider;
+		this.seekerHitHider = seekerHitHider;
+		this.seekerPlaceExplosiveSheep = seekerPlaceExplosiveSheep;
 		this.seekerWinOriginal = seekerWinOriginal;
 		this.seekerWinInfected = seekerWinInfected;
 		this.hiderWin = hiderWin;
@@ -137,6 +149,8 @@ public class ScoringConfig {
 	public static ScoringConfig defaults() {
 		return new ScoringConfig(
 				DEFAULTS.get(KEY_SEEKER_KILL_HIDER),
+				DEFAULTS.get(KEY_SEEKER_HIT_HIDER),
+				DEFAULTS.get(KEY_SEEKER_PLACE_EXPLOSIVE_SHEEP),
 				DEFAULTS.get(KEY_SEEKER_WIN_ORIGINAL),
 				DEFAULTS.get(KEY_SEEKER_WIN_INFECTED),
 				DEFAULTS.get(KEY_HIDER_WIN),
@@ -157,6 +171,8 @@ public class ScoringConfig {
 		if (section == null) return defaults();
 		return new ScoringConfig(
 				section.getInt(KEY_SEEKER_KILL_HIDER, DEFAULTS.get(KEY_SEEKER_KILL_HIDER)),
+				section.getInt(KEY_SEEKER_HIT_HIDER, DEFAULTS.get(KEY_SEEKER_HIT_HIDER)),
+				section.getInt(KEY_SEEKER_PLACE_EXPLOSIVE_SHEEP, DEFAULTS.get(KEY_SEEKER_PLACE_EXPLOSIVE_SHEEP)),
 				section.getInt(KEY_SEEKER_WIN_ORIGINAL, DEFAULTS.get(KEY_SEEKER_WIN_ORIGINAL)),
 				section.getInt(KEY_SEEKER_WIN_INFECTED, DEFAULTS.get(KEY_SEEKER_WIN_INFECTED)),
 				section.getInt(KEY_HIDER_WIN, DEFAULTS.get(KEY_HIDER_WIN)),
@@ -183,6 +199,8 @@ public class ScoringConfig {
 	public Integer getByKey(String key) {
 		return switch (key) {
 			case KEY_SEEKER_KILL_HIDER -> seekerKillHider;
+			case KEY_SEEKER_HIT_HIDER -> seekerHitHider;
+			case KEY_SEEKER_PLACE_EXPLOSIVE_SHEEP -> seekerPlaceExplosiveSheep;
 			case KEY_SEEKER_WIN_ORIGINAL -> seekerWinOriginal;
 			case KEY_SEEKER_WIN_INFECTED -> seekerWinInfected;
 			case KEY_HIDER_WIN -> hiderWin;

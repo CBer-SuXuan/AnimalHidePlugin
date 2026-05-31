@@ -27,12 +27,12 @@ public class PoopTauntSkill extends ItemBasedSkill {
 	public void execute(SkillContext context, Entity target) {
 		if (!HiderSkillSupport.checkPlayableHider(context)) return;
 		if (!HiderSkillSupport.ensureNoHidePhase(context, "还没到寻找者出动的时间，现在不能使用嘲讽哦！")) return;
+		if (!HiderSkillSupport.ensureTauntUnlocked(context)) return;
 		if (context.player().hasCooldown(getTriggerItem())) return;
 
 		Location tauntLoc = tauntTraceSupport.resolveTauntLocation(context);
 		ScoringConfig scoring = context.arena().getTemplate().getScoring();
 		int scoreReward = scoring.getTauntSafe();
-		double healAmount = context.plugin().getConfigManager().getPoopTauntHealAmount(context.arena().getArenaName());
 		int cooldownSeconds = HiderSkillSupport.getPoopTauntCooldownSeconds(context.arena().getArenaName());
 
 		tauntTraceSupport.createPoopMarker(context, tauntLoc, context.player().getName() + " 的便便");
@@ -40,8 +40,8 @@ public class PoopTauntSkill extends ItemBasedSkill {
 		tauntTraceSupport.spawnPoopParticles(context.player());
 		tauntTraceSupport.refreshSeekers(context.arena(), null, true);
 
+		context.arena().incrementSkillUse("poop_taunt");
 		context.player().sendMessage(Component.text("发动了 便便嘲讽！留下一坨线索，积分 +" + scoreReward, NamedTextColor.GREEN));
-		HiderSkillSupport.healPlayerFromTaunt(context, healAmount, "便便嘲讽", NamedTextColor.GREEN);
 		HiderSkillSupport.applySharedTauntCooldownAndReward(context, cooldownSeconds, scoreReward);
 	}
 }

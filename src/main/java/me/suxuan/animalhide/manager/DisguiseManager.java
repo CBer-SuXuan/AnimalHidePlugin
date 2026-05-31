@@ -83,7 +83,9 @@ public class DisguiseManager {
 		}
 	}
 
-	/** 伪装后统一使用玩家原版移速，不随动物种类变化 */
+	/**
+	 * 伪装后统一使用玩家原版移速，不随动物种类变化
+	 */
 	public void applyDisguiseMovement(Player player) {
 		resetMovement(player);
 	}
@@ -209,6 +211,14 @@ public class DisguiseManager {
 		player.removePotionEffect(PotionEffectType.INVISIBILITY);
 	}
 
+	public boolean applyFullGlowing(Player player, int durationTicks) {
+		if (player == null || !player.isOnline()) {
+			return false;
+		}
+		player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, durationTicks, 0, false, false, false));
+		return setDisguiseGlowing(player, durationTicks);
+	}
+
 	public boolean setDisguiseGlowing(Player player, int durationTicks) {
 		if (!player.isOnline() || !DisguiseAPI.isDisguised(player)) {
 			return false;
@@ -304,6 +314,7 @@ public class DisguiseManager {
 		LivingWatcher watcher = disguise.getWatcher();
 		watcher.setGlowing(false);
 		watcher.setCustomNameVisible(false);
+		applyFairDisguiseSize(type, watcher);
 
 		switch (targetEntity) {
 			case Sheep sheepTarget when watcher instanceof SheepWatcher sheepWatcher ->
@@ -336,6 +347,42 @@ public class DisguiseManager {
 		applyDefaultDisguisePose(player);
 		applyDisguiseMovement(player);
 		player.setCollidable(true);
+	}
+
+	private void applyFairDisguiseSize(DisguiseType type, LivingWatcher watcher) {
+		forceAdultDisguise(watcher);
+		if (isTinyDisguise(type)) {
+			tryInvoke(watcher, "setScale", float.class, 1.7f);
+			tryInvoke(watcher, "setScale", double.class, 1.7d);
+			tryInvoke(watcher, "setSize", int.class, 1);
+		}
+	}
+
+	private void forceAdultDisguise(LivingWatcher watcher) {
+		tryInvoke(watcher, "setBaby", boolean.class, false);
+		tryInvoke(watcher, "setAdult");
+		tryInvoke(watcher, "setAge", int.class, 0);
+	}
+
+	private boolean isTinyDisguise(DisguiseType type) {
+		return switch (type) {
+			case CHICKEN, RABBIT, CAT, FOX, WOLF -> true;
+			default -> false;
+		};
+	}
+
+	private void tryInvoke(Object target, String methodName, Class<?> parameterType, Object value) {
+		try {
+			target.getClass().getMethod(methodName, parameterType).invoke(target, value);
+		} catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+		}
+	}
+
+	private void tryInvoke(Object target, String methodName) {
+		try {
+			target.getClass().getMethod(methodName).invoke(target);
+		} catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+		}
 	}
 
 	/**

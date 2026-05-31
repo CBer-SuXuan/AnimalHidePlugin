@@ -9,6 +9,10 @@ prefix: "<gray>[<aqua>动物躲猫猫</aqua>]</gray> "
 # 对局内玩家碰撞由插件强制开启（计分板队伍 ah_collide + setCollidable）。
 # 若使用 TAB，请勿再对本小游戏世界关闭碰撞（勿依赖 scoreboard-teams.enable-collision=false 作用于对局世界）。
 
+match:
+  # 对局结束后的场内庆祝结算时长（秒），期间玩家留在地图、禁止互伤，胜利方播放烟花
+  settlement-duration-seconds: 8
+
 features:
   # 是否启用躲藏者的一次性“伪装隐身”技能
   hider-disguise-invisibility: true

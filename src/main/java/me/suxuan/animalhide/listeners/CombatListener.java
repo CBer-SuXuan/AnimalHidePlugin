@@ -18,7 +18,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -35,6 +37,19 @@ public class CombatListener implements Listener {
 	/**
 	 * 核心战斗与击杀逻辑判定
 	 */
+	@EventHandler(priority = EventPriority.HIGH)
+	public void onSettlementPlayerDamage(EntityDamageByEntityEvent event) {
+		if (!(event.getEntity() instanceof Player victim)) return;
+
+		Arena arena = gameManager.getArenaByPlayer(victim);
+		if (arena == null || !arena.isMatchSettlement()) return;
+
+		Player attacker = resolvePlayerAttacker(event);
+		if (attacker != null && gameManager.getArenaByPlayer(attacker) == arena) {
+			event.setCancelled(true);
+		}
+	}
+
 	@EventHandler
 	public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
 		Player attacker = null;
@@ -91,7 +106,11 @@ public class CombatListener implements Listener {
 		}
 
 		if (attackerIsSeeker && victimIsHider) {
-			if (event.getDamager() instanceof Projectile) {
+			int hitReward = (int) Math.floor(event.getFinalDamage() / 2.0);
+			if (hitReward > 0) {
+				arena.addMatchScore(attacker.getUniqueId(), hitReward);
+				attacker.sendActionBar(Component.text("命中躲藏者！造成 " + formatDamage(event.getFinalDamage()) + " 点伤害，积分 +" + hitReward, NamedTextColor.GREEN));
+			} else if (event.getDamager() instanceof Projectile) {
 				attacker.sendActionBar(Component.text("命中躲藏者！", NamedTextColor.GREEN));
 			}
 			// 寻找者 攻击 躲藏者
@@ -148,13 +167,25 @@ public class CombatListener implements Listener {
 		if (!arena.getSeekers().contains(attacker.getUniqueId())) return;
 		if (!arena.getHiders().contains(victim.getUniqueId())) return;
 
-		int kbLevel = attacker.getInventory().getItemInMainHand().getEnchantmentLevel(Enchantment.KNOCKBACK);
+		ItemStack mainHand = attacker.getInventory().getItemInMainHand();
+		int kbLevel = mainHand.getEnchantmentLevel(Enchantment.KNOCKBACK);
+		if (mainHand.getType() == Material.AIR) {
+			kbLevel = Math.max(kbLevel, 1);
+		}
 		if (kbLevel <= 0) return;
+		final int finalKbLevel = kbLevel;
 
 		AnimalHidePlugin.getInstance().getServer().getScheduler().runTask(AnimalHidePlugin.getInstance(), () -> {
 			if (!victim.isOnline() || !attacker.isOnline()) return;
-			applyMeleeKnockback(attacker, victim, kbLevel, attacker.isSprinting());
+			applyMeleeKnockback(attacker, victim, finalKbLevel, attacker.isSprinting());
 		});
+	}
+
+	private String formatDamage(double damage) {
+		if (Math.abs(damage - Math.rint(damage)) < 1.0E-9) {
+			return String.valueOf((int) Math.rint(damage));
+		}
+		return String.format(java.util.Locale.ROOT, "%.1f", damage);
 	}
 
 	private void applyMeleeKnockback(Player attacker, Player victim, int knockbackLevel, boolean sprinting) {
@@ -221,6 +252,65 @@ public class CombatListener implements Listener {
 				event.setCancelled(true);
 			}
 		}
+	}
+
+	/**
+	 * 兜底：躲藏者因 CombatListener 未拦截的致命伤害（或指令等）死亡时，转为寻找者。
+	 */
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+	public void onHiderLethalDamage(EntityDamageEvent event) {
+		if (!(event.getEntity() instanceof Player victim)) return;
+
+		Arena arena = gameManager.getArenaByPlayer(victim);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getHiders().contains(victim.getUniqueId())) return;
+		if (arena.getSpectators().contains(victim.getUniqueId())) return;
+		if (victim.getHealth() - event.getFinalDamage() > 0) return;
+
+		event.setCancelled(true);
+
+		Player killer = resolvePlayerAttacker(event);
+		if (killer != null
+				&& arena.getSeekers().contains(killer.getUniqueId())
+				&& !killer.getUniqueId().equals(victim.getUniqueId())) {
+			handleHiderDeath(arena, victim, killer);
+		} else {
+			gameManager.processHiderEliminated(arena, victim);
+		}
+	}
+
+	@EventHandler(priority = EventPriority.HIGHEST)
+	public void onHiderDeath(PlayerDeathEvent event) {
+		Player victim = event.getEntity();
+		Arena arena = gameManager.getArenaByPlayer(victim);
+		if (arena == null || arena.getState() != GameState.PLAYING) return;
+		if (!arena.getHiders().contains(victim.getUniqueId())) return;
+
+		event.deathMessage(null);
+		event.setDroppedExp(0);
+		event.getDrops().clear();
+		event.setKeepInventory(true);
+
+		AnimalHidePlugin plugin = AnimalHidePlugin.getInstance();
+		plugin.getServer().getScheduler().runTask(plugin, () -> {
+			if (!victim.isOnline()) return;
+			if (!arena.getHiders().contains(victim.getUniqueId())) return;
+			if (victim.isDead()) {
+				victim.spigot().respawn();
+			}
+			gameManager.processHiderEliminated(arena, victim);
+		});
+	}
+
+	private Player resolvePlayerAttacker(EntityDamageEvent event) {
+		if (!(event instanceof EntityDamageByEntityEvent byEntity)) return null;
+		if (byEntity.getDamager() instanceof Player player) {
+			return player;
+		}
+		if (byEntity.getDamager() instanceof Projectile projectile && projectile.getShooter() instanceof Player player) {
+			return player;
+		}
+		return null;
 	}
 
 	/**

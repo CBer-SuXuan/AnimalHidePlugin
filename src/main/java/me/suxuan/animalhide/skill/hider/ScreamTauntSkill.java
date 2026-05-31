@@ -29,6 +29,7 @@ public class ScreamTauntSkill extends ItemBasedSkill {
 	public void execute(SkillContext context, Entity target) {
 		if (!HiderSkillSupport.checkPlayableHider(context)) return;
 		if (!HiderSkillSupport.ensureNoHidePhase(context, "还没到寻找者出动的时间，现在不能使用嘲讽哦！")) return;
+		if (!HiderSkillSupport.ensureTauntUnlocked(context)) return;
 		if (context.player().hasCooldown(getTriggerItem())) return;
 
 		Location tauntLoc = tauntTraceSupport.resolveTauntLocation(context);
@@ -37,12 +38,15 @@ public class ScreamTauntSkill extends ItemBasedSkill {
 		double healAmount = context.plugin().getConfigManager().getScreamTauntHealAmount(context.arena().getArenaName());
 		int cooldownSeconds = HiderSkillSupport.getScreamTauntCooldownSeconds(context.arena().getArenaName());
 
+		tauntTraceSupport.createPoopMarker(context, tauntLoc, context.player().getName() + " 的尖叫便便");
+		tauntTraceSupport.refreshSeekers(context.arena(), null, true);
 		tauntTraceSupport.playAnimalSound(context, tauntLoc, 2f, 1.2f);
 		tauntLoc.getWorld().playSound(tauntLoc, Sound.ENTITY_GOAT_SCREAMING_PREPARE_RAM, 1.2f, 1.4f);
 		tauntTraceSupport.spawnDustBeaconColumn(context.player(), 70L, new Particle.DustOptions(org.bukkit.Color.AQUA, 1.35f), 5, 0.09, 24.0);
 		tauntTraceSupport.spawnDustBeaconColumn(context.player(), 70L, new Particle.DustOptions(org.bukkit.Color.fromRGB(180, 80, 255), 1.25f), 4, 0.12, 24.0);
 		tauntTraceSupport.pulseSeekerAudio(context.arena(), tauntLoc, Sound.BLOCK_BELL_RESONATE, 0.8f, 1.6f);
 
+		context.arena().incrementSkillUse("scream_taunt");
 		context.player().sendMessage(Component.text("发动了 尖叫嘲讽！彩色光柱会把你的方位暴露出去，积分 +" + scoreReward, NamedTextColor.GOLD));
 		HiderSkillSupport.healPlayerFromTaunt(context, healAmount, "尖叫嘲讽", NamedTextColor.GOLD);
 		HiderSkillSupport.broadcastTaunt(context, "【尖叫嘲讽】", NamedTextColor.GOLD);

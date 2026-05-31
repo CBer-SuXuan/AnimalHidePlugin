@@ -36,7 +36,7 @@ public class LeaveSubCommand implements SubCommand {
 	@Override
 	public boolean execute(CommandSender sender, String[] args) {
 		if (!me.suxuan.animalhide.AnimalHidePlugin.getInstance().getConfigManager().isNormalLeaveAllowed()) {
-			sender.sendMessage(Component.text("当前服务器模式不允许主动退出房间，请使用 /hub 返回主服；管理员请使用 /hide adminleave。", NamedTextColor.RED));
+			sender.sendMessage(Component.text("当前服务器模式不允许主动退出房间，请使用 /hub 返回主服！", NamedTextColor.RED));
 			return true;
 		}
 

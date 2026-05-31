@@ -46,6 +46,12 @@ public class ExplosiveSheepSkill extends ItemBasedSkill {
 			return;
 		}
 
+		context.arena().incrementSkillUse("explosive_sheep");
+		int scoreReward = context.arena().getTemplate().getScoring().getSeekerPlaceExplosiveSheep();
+		if (scoreReward > 0) {
+			context.arena().addMatchScore(player.getUniqueId(), scoreReward);
+			player.sendActionBar(Component.text("放置爆炸绵羊！积分 +" + scoreReward, NamedTextColor.GREEN));
+		}
 		spawnSheep(player, context);
 	}
 

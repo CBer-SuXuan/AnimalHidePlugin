@@ -27,6 +27,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private TutorialManager tutorialManager;
 	private AISpawnManager aiSpawnManager;
 	private DecoyManager decoyManager;
+	private MatchAnalyticsManager matchAnalyticsManager;
 	private me.suxuan.animalhide.skill.hider.TauntTraceSupport tauntTraceSupport;
 	private SkillManager skillManager;
 
@@ -71,6 +72,7 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		tutorialManager = new TutorialManager(this);
 		aiSpawnManager = new AISpawnManager(this);
 		decoyManager = new DecoyManager(disguiseManager);
+		matchAnalyticsManager = new MatchAnalyticsManager(this);
 		tauntTraceSupport = new me.suxuan.animalhide.skill.hider.TauntTraceSupport(this);
 		tauntTraceSupport.start();
 		skillManager = new SkillManager(this);

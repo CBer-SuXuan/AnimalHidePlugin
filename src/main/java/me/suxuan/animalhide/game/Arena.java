@@ -39,6 +39,12 @@ public class Arena {
 	private int timeLeft = 0;
 	private boolean finalRevealActive = false;
 	/**
+	 * 对局已结束、正在场内庆祝结算（与「世界重建中的 ENDING」区分）
+	 */
+	private boolean matchSettlement = false;
+	private int settlementSecondsLeft = 0;
+	private BukkitTask settlementTask;
+	/**
 	 * 大厅 STARTING 阶段的倒计时任务
 	 */
 	private BukkitTask lobbyCountdownTask;
@@ -60,6 +66,16 @@ public class Arena {
 	private final Map<UUID, Integer> arrowHits = new HashMap<>();
 	private final Map<UUID, Integer> fireworkUses = new HashMap<>();
 	private final Map<UUID, Long> disguiseLockouts = new HashMap<>();
+	private final Set<UUID> quitPlayers = new HashSet<>();
+	private final Set<UUID> allParticipants = new LinkedHashSet<>();
+	private final Map<UUID, String> playerNameSnapshot = new HashMap<>();
+	private final Map<String, Integer> skillUseCounters = new HashMap<>();
+	private long matchStartedAt = 0L;
+	private long matchEndedAt = 0L;
+	private long tauntUnlockedAtMillis = 0L;
+	private int initialPlayerCount = 0;
+	private int initialHiderCount = 0;
+	private int initialSeekerCount = 0;
 	/**
 	 * 定点伪装锚点（世界坐标 + 锁定时的伪装朝向）
 	 */
@@ -107,6 +123,19 @@ public class Arena {
 		return state == GameState.PLAYING && timeBar == null;
 	}
 
+	public void cancelSettlementTask() {
+		if (settlementTask != null) {
+			settlementTask.cancel();
+			settlementTask = null;
+		}
+	}
+
+	public void clearMatchSettlement() {
+		cancelSettlementTask();
+		matchSettlement = false;
+		settlementSecondsLeft = 0;
+	}
+
 	// === 动态坐标拼装 ===
 	private Location translate(Location configLoc) {
 		if (configLoc == null || currentWorld == null) return null;
@@ -143,7 +172,7 @@ public class Arena {
 
 	public void addPlayer(Player player) {
 		// 如果世界还没建好，先把玩家塞进名单，等建好了再传送 (由 GameManager 负责扫尾)
-		players.add(player.getUniqueId());
+		addPlayerSilently(player);
 
 		// Bug 修复：
 		// 之前只在 WAITING 状态传送玩家，结果在 STARTING（倒计时阶段）加入的玩家
@@ -156,6 +185,12 @@ public class Arena {
 		}
 	}
 
+	public void addPlayerSilently(Player player) {
+		players.add(player.getUniqueId());
+		allParticipants.add(player.getUniqueId());
+		playerNameSnapshot.put(player.getUniqueId(), player.getName());
+	}
+
 	public void teleportAndInitPlayer(Player player) {
 		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + getMaxPlayers() + ")"));
 		gameManager.resetPlayerDataWithoutLobby(player, this);
@@ -166,6 +201,12 @@ public class Arena {
 		}
 		if (template.isQueueRoom()) {
 			player.sendMessage(Component.text("你已进入匹配队列房，倒计时结束后将随机进入正式地图。", NamedTextColor.AQUA));
+			Bukkit.getScheduler().runTaskLater(AnimalHidePlugin.getInstance(), () -> {
+				if (!player.isOnline()) return;
+				if (gameManager.getArenaByPlayer(player) != this) return;
+				if (currentWorld == null || !player.getWorld().equals(currentWorld)) return;
+				AnimalHidePlugin.getInstance().getTutorialManager().refreshQueueTutorial(this);
+			}, 15L);
 		}
 		gameManager.checkAndStartCountdown(this);
 	}
@@ -242,7 +283,11 @@ public class Arena {
 		AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
 
 		if (announceQuit) {
-			broadcast(Component.text(player.getName() + " 退出了游戏!"));
+			broadcast(Component.text(player.getName() + " 退出了游戏。", NamedTextColor.YELLOW));
+		}
+
+		if (state == GameState.STARTING || state == GameState.PLAYING) {
+			quitPlayers.add(uuid);
 		}
 
 		// 如果房间已经没人了，直接摧毁房间释放资源（含世界生成中的 ENDING）
@@ -284,5 +329,26 @@ public class Arena {
 
 	public int getMatchKills(UUID uuid) {
 		return matchKills.getOrDefault(uuid, 0);
+	}
+
+	public void markMatchStart(int initialPlayerCount, int initialHiderCount, int initialSeekerCount) {
+		this.matchStartedAt = System.currentTimeMillis();
+		this.matchEndedAt = 0L;
+		this.initialPlayerCount = initialPlayerCount;
+		this.initialHiderCount = initialHiderCount;
+		this.initialSeekerCount = initialSeekerCount;
+	}
+
+	public void markMatchEnd() {
+		this.matchEndedAt = System.currentTimeMillis();
+	}
+
+	public void incrementSkillUse(String skillKey) {
+		if (skillKey == null || skillKey.isBlank()) return;
+		skillUseCounters.merge(skillKey, 1, Integer::sum);
+	}
+
+	public int getSkillUseCount(String skillKey) {
+		return skillUseCounters.getOrDefault(skillKey, 0);
 	}
 }

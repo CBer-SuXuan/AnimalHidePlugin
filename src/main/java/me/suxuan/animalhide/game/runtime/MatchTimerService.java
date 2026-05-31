@@ -78,7 +78,8 @@ public class MatchTimerService {
 
 	private void releaseSeekers(Arena arena) {
 		arena.openPhaseDoors();
-		arena.broadcast(Component.text("⚔ 寻找者已出动！", NamedTextColor.DARK_RED));
+		arena.setTauntUnlockedAtMillis(System.currentTimeMillis() + 30_000L);
+		arena.broadcast(Component.text("⚔ 寻找者已出动！躲藏者嘲讽将在 30 秒后解锁。", NamedTextColor.DARK_RED));
 
 		for (UUID seekerId : arena.getSeekers()) {
 			Player seeker = Bukkit.getPlayer(seekerId);
@@ -126,6 +127,9 @@ public class MatchTimerService {
 					arena.setTimeLeft(timeLeft);
 					updateBossBar(timeBar, timeLeft, durationSeconds);
 					activateFinalRevealIfNeeded(arena, timeLeft);
+					if (arena.isFinalRevealActive()) {
+						plugin.getTauntTraceSupport().refreshSeekersToNearestHider(arena);
+					}
 					int elapsed = durationSeconds - timeLeft;
 					applySurvivalReward(arena, survivalReward, survivalInterval, elapsed);
 					replenishHiderArrows(arena, elapsed);
@@ -167,8 +171,7 @@ public class MatchTimerService {
 		for (UUID id : arena.getHiders()) {
 			Player hider = Bukkit.getPlayer(id);
 			if (hider == null || !hider.isOnline()) continue;
-			hider.addPotionEffect(new org.bukkit.potion.PotionEffect(PotionEffectType.GLOWING, effectDurationTicks, 0, false, false, false));
-			plugin.getDisguiseManager().setDisguiseGlowingState(hider, true);
+			plugin.getDisguiseManager().applyFullGlowing(hider, effectDurationTicks);
 			hider.sendActionBar(actionBar);
 		}
 	}

@@ -46,7 +46,7 @@ public class GameManager {
 		this.slimeArenaManager = slimeArenaManager;
 		this.mainLobby = configManager.getLocation(configManager.getMainConfig().getConfigurationSection("main-lobby"));
 		this.playerStateService = new PlayerStateService(plugin, configManager, disguiseManager, mainLobby);
-		this.matchResultService = new MatchResultService(plugin, playerStateService);
+		this.matchResultService = new MatchResultService(plugin, configManager, playerStateService);
 		this.lobbyCountdownService = new LobbyCountdownService(plugin, configManager, this::startGame);
 		this.matchTimerService = new MatchTimerService(plugin, configManager, arena -> endGame(arena, PlayerRole.HIDER));
 		this.roleSetupService = new RoleSetupService(disguiseManager, configManager);
@@ -207,8 +207,11 @@ public class GameManager {
 		});
 	}
 
+	private static final long QUEUE_INIT_INTERVAL_TICKS = 10L;
+	private static final long QUEUE_REJOIN_INTERVAL_TICKS = 2L;
+
 	private void initializeQueuePlayersSequentially(Arena arena, List<UUID> playerIds) {
-		initializePlayersSequentially(arena, playerIds, 2L);
+		initializePlayersSequentially(arena, playerIds, QUEUE_INIT_INTERVAL_TICKS);
 	}
 
 	private void autoJoinQueueSequentially(List<UUID> playerIds, long intervalTicks) {
@@ -351,6 +354,7 @@ public class GameManager {
 		}
 		lobbyCountdownService.cancelLobbyCountdown(arena);
 		arena.setFinalRevealActive(false);
+		arena.setTauntUnlockedAtMillis(0L);
 		arena.setState(GameState.PLAYING);
 
 		int animalVotes = arena.getModeVoteCount(ArenaMode.ANIMAL);
@@ -435,6 +439,7 @@ public class GameManager {
 			}
 		}
 
+		arena.markMatchStart(players.size(), arena.getHiders().size(), arena.getSeekers().size());
 		matchTimerService.startHidePhaseTask(arena, hideTime);
 	}
 
@@ -489,6 +494,13 @@ public class GameManager {
 	}
 
 	/**
+	 * 躲藏者因非寻找者击杀途径失去生命后，直接转为寻找者（不计入击杀者积分）。
+	 */
+	public void processHiderEliminated(Arena arena, Player victim) {
+		roleConversionService.processHiderEliminated(arena, victim);
+	}
+
+	/**
 	 * 结束指定房间的游戏，进行结算与数据清理
 	 *
 	 * @param arena  目标房间
@@ -496,7 +508,7 @@ public class GameManager {
 	 */
 	public void endGame(Arena arena, PlayerRole winner) {
 		matchResultService.endGame(arena, winner, finishedArena -> {
-			autoJoinQueueSequentially(new ArrayList<>(finishedArena.getPlayers()), 2L);
+			autoJoinQueueSequentially(new ArrayList<>(finishedArena.getPlayers()), QUEUE_REJOIN_INTERVAL_TICKS);
 			destroyArenaMatch(finishedArena);
 		});
 	}
@@ -505,6 +517,7 @@ public class GameManager {
 	 * 彻底销毁一个对局及其对应的 Slime 世界
 	 */
 	public void destroyArenaMatch(Arena match) {
+		match.clearMatchSettlement();
 		plugin.getTauntTraceSupport().clearArena(match);
 		match.openPhaseDoors();
 		lobbyCountdownService.cancelLobbyCountdown(match);
@@ -613,7 +626,7 @@ public class GameManager {
 				playersToRequeue.add(uuid);
 			}
 		}
-		autoJoinQueueSequentially(playersToRequeue, 2L);
+		autoJoinQueueSequentially(playersToRequeue, QUEUE_REJOIN_INTERVAL_TICKS);
 		match.getPlayers().clear();
 		destroyArenaMatch(match);
 	}
@@ -646,19 +659,20 @@ public class GameManager {
 					if (player == null) continue;
 					queueArena.getPlayers().remove(uuid);
 					player.sendMessage(Component.text("已从匹配队列前往正式地图: " + selected.getMapName(), NamedTextColor.GOLD));
-					match.addPlayer(player);
+					match.addPlayerSilently(player);
 				}
 				queueArena.getPlayers().clear();
 				lobbyCountdownService.cancelLobbyCountdown(queueArena);
 				queueArena.setState(GameState.ENDING);
 				Bukkit.getScheduler().runTaskLater(plugin, () -> destroyArenaMatch(queueArena), 10L);
-				Bukkit.getScheduler().runTaskLater(plugin, () -> {
-					if (activeMatches.contains(match) && match.getState() == GameState.WAITING) {
-						startGame(match);
-					}
-				}, 5L);
+				if (!match.getPlayers().isEmpty()) {
+					startGame(match);
+				} else {
+					destroyArenaMatch(match);
+				}
 			});
 		}).exceptionally(ex -> {
+
 			Bukkit.getScheduler().runTask(plugin, () -> {
 				queueArena.broadcast(Component.text("正式地图创建失败，已返回队列等待。", NamedTextColor.RED));
 				queueArena.setState(GameState.WAITING);

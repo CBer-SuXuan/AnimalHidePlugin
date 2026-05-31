@@ -28,12 +28,12 @@ public class StinkyTauntSkill extends ItemBasedSkill {
 	public void execute(SkillContext context, Entity target) {
 		if (!HiderSkillSupport.checkPlayableHider(context)) return;
 		if (!HiderSkillSupport.ensureNoHidePhase(context, "还没到寻找者出动的时间，现在不能使用嘲讽哦！")) return;
+		if (!HiderSkillSupport.ensureTauntUnlocked(context)) return;
 		if (context.player().hasCooldown(getTriggerItem())) return;
 
 		Location tauntLoc = tauntTraceSupport.resolveTauntLocation(context);
 		ScoringConfig scoring = context.arena().getTemplate().getScoring();
 		int scoreReward = scoring.getTauntRisky();
-		double healAmount = context.plugin().getConfigManager().getStinkyTauntHealAmount(context.arena().getArenaName());
 		int cooldownSeconds = HiderSkillSupport.getStinkyTauntCooldownSeconds(context.arena().getArenaName());
 
 		tauntTraceSupport.createPoopMarker(context, tauntLoc, context.player().getName() + " 的臭便便");
@@ -43,8 +43,8 @@ public class StinkyTauntSkill extends ItemBasedSkill {
 		tauntTraceSupport.spawnStinkCloud(context.player(), 80L);
 		tauntTraceSupport.refreshSeekers(context.arena(), null, true);
 
+		context.arena().incrementSkillUse("stinky_taunt");
 		context.player().sendMessage(Component.text("发动了 臭气嘲讽！臭味会在原地停留一会儿，积分 +" + scoreReward, NamedTextColor.YELLOW));
-		HiderSkillSupport.healPlayerFromTaunt(context, healAmount, "臭气嘲讽", NamedTextColor.YELLOW);
 		HiderSkillSupport.applySharedTauntCooldownAndReward(context, cooldownSeconds, scoreReward);
 	}
 }

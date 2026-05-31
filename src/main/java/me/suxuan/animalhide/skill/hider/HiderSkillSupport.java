@@ -32,6 +32,15 @@ public final class HiderSkillSupport {
 		return false;
 	}
 
+	public static boolean ensureTauntUnlocked(SkillContext context) {
+		long unlockAt = context.arena().getTauntUnlockedAtMillis();
+		long now = System.currentTimeMillis();
+		if (unlockAt <= now) return true;
+		long remainSeconds = Math.max(1L, (unlockAt - now + 999L) / 1000L);
+		context.player().sendActionBar(Component.text("寻找者刚出动，嘲讽将在 " + remainSeconds + " 秒后解锁！", NamedTextColor.RED));
+		return false;
+	}
+
 	public static void applySharedTauntCooldownAndReward(SkillContext context, int cooldownSeconds, int scoreReward) {
 		int ticks = cooldownSeconds * 20;
 		context.player().setCooldown(Material.COCOA_BEANS, ticks);
@@ -82,11 +91,9 @@ public final class HiderSkillSupport {
 	}
 
 	public static void broadcastTaunt(SkillContext context, String tauntName, NamedTextColor color) {
-		Component levelTag = getTauntLevelTag(color);
 		context.arena().broadcast(
 				Component.text("【全场通报】", NamedTextColor.GOLD, TextDecoration.BOLD)
 						.append(Component.text(" ", NamedTextColor.WHITE))
-						.append(levelTag)
 						.append(Component.text(" ", NamedTextColor.WHITE))
 						.append(Component.text(context.player().getName(), NamedTextColor.AQUA))
 						.append(Component.text(" 发动了 ", NamedTextColor.GRAY))

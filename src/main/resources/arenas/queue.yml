@@ -52,6 +52,8 @@ allowed-monsters: [ ]
 
 scoring:
   seeker-kill-hider: 10
+  seeker-hit-hider: 5
+  seeker-place-explosive-sheep: 7
   seeker-win-original: 20
   seeker-win-infected: 5
   hider-win: 20

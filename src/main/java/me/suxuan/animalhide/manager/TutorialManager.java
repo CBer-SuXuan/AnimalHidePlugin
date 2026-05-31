@@ -218,6 +218,27 @@ public class TutorialManager {
 		}
 	}
 
+	public void ensureQueueTutorial(Arena arena) {
+		if (arena == null || arena.getCurrentWorld() == null) return;
+		if (!arena.getTemplate().isQueueRoom()) return;
+		if (!plugin.getConfigManager().isQueueTutorialEnabled()) return;
+
+		String worldName = arena.getCurrentWorld().getName();
+		if (hasActiveQueueTutorial(worldName)) {
+			return;
+		}
+		spawnQueueTutorial(arena);
+	}
+
+	public void refreshQueueTutorial(Arena arena) {
+		if (arena == null || arena.getCurrentWorld() == null) return;
+		if (!arena.getTemplate().isQueueRoom()) return;
+		if (!plugin.getConfigManager().isQueueTutorialEnabled()) return;
+
+		clearQueueTutorial(arena.getCurrentWorld().getName());
+		spawnQueueTutorial(arena);
+	}
+
 	public void clearQueueTutorial(World world) {
 		if (world == null) return;
 		clearQueueTutorial(world.getName());
@@ -232,6 +253,26 @@ public class TutorialManager {
 		if (textList != null) {
 			for (QueueTutorialText text : textList) text.destroy();
 		}
+	}
+
+	private boolean hasActiveQueueTutorial(String worldName) {
+		List<DemoStation> stationList = queueStations.get(worldName);
+		if (stationList != null && stationList.stream().anyMatch(this::isStationActive)) {
+			return true;
+		}
+		List<QueueTutorialText> textList = queueTexts.get(worldName);
+		return textList != null && textList.stream().anyMatch(this::isQueueTextActive);
+	}
+
+	private boolean isStationActive(DemoStation station) {
+		if (station == null) return false;
+		Entity carrier = station.getCarrier();
+		TextDisplay hologram = station.getHologram();
+		return carrier != null && carrier.isValid() && hologram != null && hologram.isValid();
+	}
+
+	private boolean isQueueTextActive(QueueTutorialText text) {
+		return text != null && text.getDisplay() != null && text.getDisplay().isValid();
 	}
 
 	// =====================================================================

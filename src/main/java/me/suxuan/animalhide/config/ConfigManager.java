@@ -101,6 +101,10 @@ public class ConfigManager {
 		return new SpawnPoint(loc, types, weight);
 	}
 
+	public int getMatchSettlementDurationSeconds() {
+		return Math.max(3, Math.min(60, mainConfig.getInt("match.settlement-duration-seconds", 8)));
+	}
+
 	public boolean isHiderDisguiseInvisibilityEnabled() {
 		return mainConfig.getBoolean("features.hider-disguise-invisibility", true);
 	}

@@ -90,6 +90,10 @@ public class ScoreboardManager {
 			} else if (isHider) {
 				appendHiderBowLines(lines, arena, player);
 			}
+		} else if (arena.isMatchSettlement()) {
+			lines.add("§f状态: " + getStateString(GameState.ENDING));
+			lines.add("§a");
+			lines.add("§f返回大厅: §e" + arena.getSettlementSecondsLeft() + "秒");
 		} else if (arena.getState() == GameState.STARTING || arena.getState() == GameState.WAITING) {
 			lines.add("§a"); // 空行作分隔
 			lines.add("§f地图: §a" + arena.getArenaName());
