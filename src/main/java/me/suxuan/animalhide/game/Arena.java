@@ -36,6 +36,7 @@ public class Arena {
 
 	private GameState state;
 	private BossBar timeBar;
+	private boolean hidePhaseActive = false;
 	private int timeLeft = 0;
 	private boolean finalRevealActive = false;
 	/**
@@ -120,7 +121,7 @@ public class Arena {
 	 * 是否处于开局躲藏阶段（寻找者尚未出动，BossBar 未创建）
 	 */
 	public boolean isHidePhase() {
-		return state == GameState.PLAYING && timeBar == null;
+		return state == GameState.PLAYING && hidePhaseActive;
 	}
 
 	public void cancelSettlementTask() {
@@ -173,13 +174,14 @@ public class Arena {
 	public void addPlayer(Player player) {
 		// 如果世界还没建好，先把玩家塞进名单，等建好了再传送 (由 GameManager 负责扫尾)
 		addPlayerSilently(player);
+		int joinedCount = players.size();
 
 		// Bug 修复：
 		// 之前只在 WAITING 状态传送玩家，结果在 STARTING（倒计时阶段）加入的玩家
 		// 会被卡在原地、拿不到大厅物品，但 startGame 仍会把他当成正常房间成员分配阵营。
 		// STARTING 状态下世界已就绪，必须照常传送+发物品。
 		if (currentWorld != null && (state == GameState.WAITING || state == GameState.STARTING)) {
-			teleportAndInitPlayer(player);
+			teleportAndInitPlayer(player, joinedCount);
 		} else {
 			player.sendMessage(Component.text("正在为您分配小游戏服务器资源，请稍候...", NamedTextColor.YELLOW));
 		}
@@ -191,14 +193,15 @@ public class Arena {
 		playerNameSnapshot.put(player.getUniqueId(), player.getName());
 	}
 
-	public void teleportAndInitPlayer(Player player) {
-		broadcast(Component.text(player.getName() + " 加入了游戏! (" + players.size() + "/" + getMaxPlayers() + ")"));
+	public void teleportAndInitPlayer(Player player, int joinedCount) {
+		broadcast(Component.text(player.getName() + " 加入了游戏! (" + joinedCount + "/" + getMaxPlayers() + ")"));
 		gameManager.resetPlayerDataWithoutLobby(player, this);
 		giveLobbyItems(player);
 		Location waitingLobby = getWaitingLobby();
 		if (waitingLobby != null) {
 			player.teleportAsync(waitingLobby);
 		}
+		AnimalHidePlugin.getInstance().getBossBarManager().showLobbyBar(player, this);
 		if (template.isQueueRoom()) {
 			player.sendMessage(Component.text("你已进入匹配队列房，倒计时结束后将随机进入正式地图。", NamedTextColor.AQUA));
 			Bukkit.getScheduler().runTaskLater(AnimalHidePlugin.getInstance(), () -> {
@@ -280,6 +283,7 @@ public class Arena {
 		decoySavedMoveSpeed.remove(uuid);
 
 		gameManager.resetPlayerData(player, this);
+		AnimalHidePlugin.getInstance().getBossBarManager().hide(player);
 		AnimalHidePlugin.getInstance().getScoreboardManager().removeBoard(player);
 
 		if (announceQuit) {
@@ -301,6 +305,8 @@ public class Arena {
 			else if (wasSeeker && seekers.isEmpty()) gameManager.endGame(this, PlayerRole.HIDER);
 		} else if (state == GameState.STARTING) {
 			gameManager.refreshLobbyCountdown(this);
+		} else if (state == GameState.WAITING) {
+			AnimalHidePlugin.getInstance().getBossBarManager().refreshLobbyBar(this);
 		}
 	}
 

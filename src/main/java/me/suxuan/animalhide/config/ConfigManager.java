@@ -134,7 +134,7 @@ public class ConfigManager {
 	}
 
 	public double getSeekerReleasedMoveSpeed() {
-		return Math.max(0.01, mainConfig.getDouble("seeker.released-move-speed", 0.11));
+		return Math.max(0.01, mainConfig.getDouble("seeker.released-move-speed", 0.13));
 	}
 
 	public int getPoopTauntCooldownSeconds(String arenaName) {

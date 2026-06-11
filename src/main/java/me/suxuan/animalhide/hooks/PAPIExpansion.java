@@ -100,17 +100,17 @@ public class PAPIExpansion extends PlaceholderExpansion implements Relational {
 			switch (params) {
 				// %animalhide_stat_score% -> 玩家总积分
 				case "stat_score" -> {
-					return String.valueOf(db.getStat(player.getUniqueId(), "score"));
+					return String.valueOf(db.getStat(player.getUniqueId(), "total_score"));
 				}
 
 				// %animalhide_stat_wins% -> 玩家总胜场
 				case "stat_wins" -> {
-					return String.valueOf(db.getStat(player.getUniqueId(), "wins"));
+					return String.valueOf(db.getStat(player.getUniqueId(), "total_wins"));
 				}
 
 				// %animalhide_stat_kills% -> 玩家总击杀
 				case "stat_kills" -> {
-					return String.valueOf(db.getStat(player.getUniqueId(), "kills"));
+					return String.valueOf(db.getStat(player.getUniqueId(), "total_kills"));
 				}
 
 				// 用法: %animalhide_player_arena% -> 返回玩家当前所在的地图名

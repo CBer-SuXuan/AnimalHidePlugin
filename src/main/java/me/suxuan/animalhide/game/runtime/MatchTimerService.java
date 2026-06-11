@@ -6,7 +6,6 @@ import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameManager;
 import me.suxuan.animalhide.game.GameState;
 import me.suxuan.animalhide.game.ScoringConfig;
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
@@ -35,21 +34,25 @@ public class MatchTimerService {
 	}
 
 	public void startHidePhaseTask(Arena arena, int hideTimeSeconds) {
+		arena.setHidePhaseActive(true);
 		new BukkitRunnable() {
 			int timeLeft = hideTimeSeconds;
 
 			@Override
 			public void run() {
 				if (arena.getState() != GameState.PLAYING) {
+					arena.setHidePhaseActive(false);
 					cancel();
 					return;
 				}
 
 				if (timeLeft > 0) {
 					arena.setTimeLeft(timeLeft);
+					plugin.getBossBarManager().showHidePhaseBar(arena, timeLeft, hideTimeSeconds);
 					sendHidePhaseActionBars(arena, timeLeft);
 					timeLeft--;
 				} else {
+					arena.setHidePhaseActive(false);
 					releaseSeekers(arena);
 					cancel();
 
@@ -96,18 +99,8 @@ public class MatchTimerService {
 	}
 
 	public void startGameTimer(Arena arena, int durationSeconds) {
-		BossBar timeBar = BossBar.bossBar(
-				Component.text("⏳ 游戏剩余时间: " + durationSeconds + " 秒", NamedTextColor.WHITE),
-				1.0f,
-				BossBar.Color.RED,
-				BossBar.Overlay.PROGRESS
-		);
-
-		arena.setTimeBar(timeBar);
-		for (UUID uuid : arena.getPlayers()) {
-			Player p = Bukkit.getPlayer(uuid);
-			if (p != null) p.showBossBar(timeBar);
-		}
+		arena.setTimeBar(null);
+		plugin.getBossBarManager().showGameBar(arena, durationSeconds, durationSeconds);
 
 		ScoringConfig scoring = arena.getTemplate().getScoring();
 		int survivalReward = scoring.getHiderSurvivalReward();
@@ -125,7 +118,7 @@ public class MatchTimerService {
 
 				if (timeLeft > 0) {
 					arena.setTimeLeft(timeLeft);
-					updateBossBar(timeBar, timeLeft, durationSeconds);
+					plugin.getBossBarManager().showGameBar(arena, timeLeft, durationSeconds);
 					activateFinalRevealIfNeeded(arena, timeLeft);
 					if (arena.isFinalRevealActive()) {
 						plugin.getTauntTraceSupport().refreshSeekersToNearestHider(arena);
@@ -142,15 +135,6 @@ public class MatchTimerService {
 		}.runTaskTimer(plugin, 0L, 20L);
 	}
 
-	private void updateBossBar(BossBar timeBar, int timeLeft, int durationSeconds) {
-		float progress = (float) timeLeft / durationSeconds;
-		timeBar.progress(progress);
-		if (timeLeft <= 30) {
-			timeBar.name(Component.text("⏳ 游戏剩余时间: " + timeLeft + " 秒", NamedTextColor.RED));
-		} else {
-			timeBar.name(Component.text("⏳ 游戏剩余时间: " + timeLeft + " 秒", NamedTextColor.WHITE));
-		}
-	}
 
 	private void activateFinalRevealIfNeeded(Arena arena, int timeLeft) {
 		if (timeLeft > 30 || arena.isFinalRevealActive()) {

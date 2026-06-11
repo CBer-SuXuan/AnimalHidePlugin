@@ -37,7 +37,7 @@ queue:
 
 seeker:
   pre-release-move-speed: 0.10
-  released-move-speed: 0.11
+  released-move-speed: 0.13
 
 taunt-cooldowns:
   safe: 5

@@ -34,6 +34,8 @@ public class LobbyCountdownService {
 			beginLobbyCountdown(arena);
 		} else if (arena.getState() == GameState.STARTING) {
 			refreshLobbyCountdown(arena);
+		} else {
+			plugin.getBossBarManager().refreshLobbyBar(arena);
 		}
 	}
 
@@ -46,6 +48,7 @@ public class LobbyCountdownService {
 			arena.setState(GameState.WAITING);
 			arena.setTimeLeft(0);
 			arena.broadcast(Component.text("人数不足，取消倒计时...", NamedTextColor.RED));
+			plugin.getBossBarManager().refreshLobbyBar(arena);
 			return;
 		}
 
@@ -118,6 +121,7 @@ public class LobbyCountdownService {
 
 				if (countdown > 0) {
 					arena.setTimeLeft(countdown);
+					plugin.getBossBarManager().refreshLobbyBar(arena);
 					maybeShowLobbyCountdownTitle(arena, countdown, fast);
 					countdown--;
 				} else {

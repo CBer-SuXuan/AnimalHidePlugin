@@ -253,7 +253,7 @@ public class GameManager {
 				if (player == null || !player.isOnline()) {
 					return;
 				}
-				arena.teleportAndInitPlayer(player);
+				arena.teleportAndInitPlayer(player, arena.getPlayers().size());
 			}, delay);
 			delay += Math.max(1L, intervalTicks);
 		}
@@ -356,6 +356,7 @@ public class GameManager {
 			return;
 		}
 		lobbyCountdownService.cancelLobbyCountdown(arena);
+		plugin.getBossBarManager().clearArena(arena);
 		arena.setFinalRevealActive(false);
 		arena.setTauntUnlockedAtMillis(0L);
 		arena.setState(GameState.PLAYING);
@@ -521,6 +522,7 @@ public class GameManager {
 	 */
 	public void destroyArenaMatch(Arena match) {
 		match.clearMatchSettlement();
+		plugin.getBossBarManager().clearArena(match);
 		plugin.getTauntTraceSupport().clearArena(match);
 		match.openPhaseDoors();
 		lobbyCountdownService.cancelLobbyCountdown(match);

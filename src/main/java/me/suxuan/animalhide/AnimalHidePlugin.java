@@ -24,11 +24,12 @@ public final class AnimalHidePlugin extends JavaPlugin {
 	private DisguiseManager disguiseManager;
 	private GameManager gameManager;
 	private ScoreboardManager scoreboardManager;
+	private BossBarManager bossBarManager;
 	private DatabaseManager databaseManager;
+	private MatchStatsFileManager matchStatsFileManager;
 	private TutorialManager tutorialManager;
 	private AISpawnManager aiSpawnManager;
 	private DecoyManager decoyManager;
-	private MatchAnalyticsManager matchAnalyticsManager;
 	private TauntTraceSupport tauntTraceSupport;
 	private SkillManager skillManager;
 
@@ -69,11 +70,12 @@ public final class AnimalHidePlugin extends JavaPlugin {
 		disguiseManager = new DisguiseManager(this);
 		gameManager = new GameManager(this, configManager, disguiseManager, arenaManager);
 		scoreboardManager = new ScoreboardManager(this, gameManager);
+		bossBarManager = new BossBarManager(this, gameManager);
 		databaseManager = new DatabaseManager(this);
+		matchStatsFileManager = new MatchStatsFileManager(this);
 		tutorialManager = new TutorialManager(this);
 		aiSpawnManager = new AISpawnManager(this);
 		decoyManager = new DecoyManager(disguiseManager);
-		matchAnalyticsManager = new MatchAnalyticsManager(this);
 		tauntTraceSupport = new TauntTraceSupport(this);
 		tauntTraceSupport.start();
 		skillManager = new SkillManager(this);

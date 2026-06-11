@@ -41,8 +41,11 @@ public class PlayerStateService {
 	public void resetPlayerDataWithoutLobby(Player player, Arena arena) {
 		if (player == null) return;
 
-		if (arena != null && arena.getTimeBar() != null) {
-			player.hideBossBar(arena.getTimeBar());
+		if (arena != null) {
+			plugin.getBossBarManager().hide(player);
+			if (arena.getTimeBar() != null) {
+				player.hideBossBar(arena.getTimeBar());
+			}
 		}
 
 		if (arena != null) {

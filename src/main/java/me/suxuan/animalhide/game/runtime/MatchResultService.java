@@ -6,7 +6,6 @@ import me.suxuan.animalhide.game.Arena;
 import me.suxuan.animalhide.game.GameState;
 import me.suxuan.animalhide.game.PlayerRole;
 import me.suxuan.animalhide.game.ScoringConfig;
-import me.suxuan.animalhide.manager.DatabaseManager;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -22,7 +21,6 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,13 +64,13 @@ public class MatchResultService {
 		if (!adminShutdown) {
 			broadcastTopScores(arena);
 			persistStats(arena, winners);
-			persistMatchAnalytics(arena, winner, winners, finalRevealTriggered, false);
+			recordMatchSummary(arena, winner);
 			executeSettlementRewardCommands(arena, winner);
 			beginSettlementPhase(arena, winner, winners, adminShutdown, afterSettlement);
 		} else {
-			persistMatchAnalytics(arena, winner, winners, finalRevealTriggered, true);
 			arena.broadcast(Component.text("      本局为管理员结束，不结算积分与胜场", NamedTextColor.GRAY));
 			arena.broadcast(Component.text("=========================", NamedTextColor.YELLOW));
+			updateSettlementBossBar(arena, 1, winner, adminShutdown);
 			finishSettlement(arena, adminShutdown, afterSettlement);
 		}
 	}
@@ -86,7 +84,7 @@ public class MatchResultService {
 		arena.broadcast(Component.text("      庆祝结算中，" + seconds + " 秒后返回大厅...", NamedTextColor.AQUA));
 		arena.broadcast(Component.text("=========================", NamedTextColor.YELLOW));
 
-		updateSettlementBossBar(arena, seconds);
+		updateSettlementBossBar(arena, seconds, winner, adminShutdown);
 
 		arena.setSettlementTask(new BukkitRunnable() {
 			int remaining = seconds;
@@ -105,23 +103,18 @@ public class MatchResultService {
 				}
 
 				arena.setSettlementSecondsLeft(remaining);
-				updateSettlementBossBar(arena, remaining);
+				updateSettlementBossBar(arena, remaining, winner, adminShutdown);
 				spawnWinnerFireworks(arena, winners, winner);
 				remaining--;
 			}
 		}.runTaskTimer(plugin, 0L, 20L));
 	}
 
-	private void updateSettlementBossBar(Arena arena, int secondsLeft) {
-		BossBar bar = arena.getTimeBar();
-		if (bar == null) {
-			return;
-		}
+	private void updateSettlementBossBar(Arena arena, int secondsLeft, PlayerRole winner, boolean adminShutdown) {
 		int duration = configManager.getMatchSettlementDurationSeconds();
-		float progress = duration <= 0 ? 0f : (float) secondsLeft / duration;
-		bar.progress(Math.max(0f, Math.min(1f, progress)));
-		bar.color(BossBar.Color.GREEN);
-		bar.name(Component.text("庆祝结算中 · " + secondsLeft + " 秒后离开", NamedTextColor.GREEN));
+		String winnerName = adminShutdown ? "游戏已结束" : winner.getDisplayName() + "胜利！";
+		BossBar.Color color = adminShutdown ? BossBar.Color.WHITE : winner == PlayerRole.SEEKER ? BossBar.Color.RED : BossBar.Color.GREEN;
+		plugin.getBossBarManager().showSettlementBar(arena, secondsLeft, duration, winnerName, color);
 	}
 
 	private void spawnWinnerFireworks(Arena arena, Set<UUID> winners, PlayerRole winnerRole) {
@@ -161,6 +154,7 @@ public class MatchResultService {
 
 	private void finishSettlement(Arena arena, boolean adminShutdown, Consumer<Arena> afterSettlement) {
 		arena.clearMatchSettlement();
+		plugin.getBossBarManager().clearArena(arena);
 		resetPlayersAfterResult(arena, adminShutdown);
 		afterSettlement.accept(arena);
 	}
@@ -263,16 +257,19 @@ public class MatchResultService {
 	}
 
 	private void persistStats(Arena arena, Set<UUID> winners) {
-		DatabaseManager db = plugin.getDatabaseManager();
-		for (UUID uuid : arena.getPlayers()) {
-			Player p = Bukkit.getPlayer(uuid);
-			if (p == null) continue;
+		for (UUID uuid : arena.getAllParticipants()) {
+			String playerName = arena.getPlayerNameSnapshot().getOrDefault(uuid, "unknown");
 			int scoreEarned = arena.getMatchScores().getOrDefault(uuid, 0);
 			int killsEarned = arena.getMatchKills(uuid);
-			int winEarned = winners.contains(uuid) ? 1 : 0;
+			boolean won = winners.contains(uuid);
+			boolean quitMidGame = arena.getQuitPlayers().contains(uuid);
+			PlayerRole finalRole = resolveFinalRole(arena, uuid);
 
-			db.addStatsAsync(uuid, p.getName(), scoreEarned, winEarned, killsEarned);
-			p.sendMessage(Component.text("已结算入库：+" + scoreEarned + " 总积分", NamedTextColor.GRAY));
+			plugin.getDatabaseManager().recordMatchStatsAsync(uuid, playerName, scoreEarned, killsEarned, won, finalRole, quitMidGame);
+			Player online = Bukkit.getPlayer(uuid);
+			if (online != null) {
+				online.sendMessage(Component.text("已结算入库：+" + scoreEarned + " 总积分", NamedTextColor.GRAY));
+			}
 		}
 	}
 
@@ -281,6 +278,7 @@ public class MatchResultService {
 			Player player = Bukkit.getPlayer(uuid);
 			if (player == null) continue;
 			playerStateService.resetPlayerData(player, arena);
+			plugin.getBossBarManager().hide(player);
 			plugin.getScoreboardManager().removeBoard(player);
 			if (adminShutdown) {
 				player.sendMessage(Component.text("本局已由管理员结束，未写入积分与胜场。", NamedTextColor.GRAY));
@@ -288,65 +286,25 @@ public class MatchResultService {
 		}
 	}
 
-	private void persistMatchAnalytics(Arena arena, PlayerRole winner, Set<UUID> winners, boolean finalRevealTriggered, boolean adminShutdown) {
-		Map<String, Object> root = new LinkedHashMap<>();
-		root.put("instanceName", arena.getInstanceName());
-		root.put("mapName", arena.getArenaName());
-		root.put("templateName", arena.getTemplate().getTemplateName());
-		root.put("arenaMode", arena.getArenaMode().name());
-		root.put("startedAt", arena.getMatchStartedAt());
-		root.put("endedAt", arena.getMatchEndedAt());
-		root.put("durationSeconds", Math.max(0L, (arena.getMatchEndedAt() - arena.getMatchStartedAt()) / 1000L));
-		root.put("playerCount", arena.getInitialPlayerCount());
-		root.put("initialHiderCount", arena.getInitialHiderCount());
-		root.put("initialSeekerCount", arena.getInitialSeekerCount());
-		root.put("winner", winner.name());
-		root.put("survivingHiders", arena.getHiders().size());
-		root.put("remainingSeekers", arena.getSeekers().size());
-		root.put("originalSeekerCount", arena.getOriginalSeekers().size());
-		root.put("infectedSeekerCount", Math.max(0, arena.getSeekers().size() - arena.getOriginalSeekers().size()));
-		root.put("quitPlayerCount", arena.getQuitPlayers().size());
-		root.put("finalRevealTriggered", finalRevealTriggered);
-		root.put("endedByAdmin", adminShutdown);
-
-		Map<String, Object> skillCounters = new LinkedHashMap<>();
-		skillCounters.put("poopTauntUses", arena.getSkillUseCount("poop_taunt"));
-		skillCounters.put("stinkyTauntUses", arena.getSkillUseCount("stinky_taunt"));
-		skillCounters.put("screamTauntUses", arena.getSkillUseCount("scream_taunt"));
-		skillCounters.put("partyTauntUses", arena.getSkillUseCount("party_taunt"));
-		skillCounters.put("explosiveSheepUses", arena.getSkillUseCount("explosive_sheep"));
-		root.put("skillCounters", skillCounters);
-
-		List<Map<String, Object>> players = new ArrayList<>();
-		for (UUID uuid : arena.getAllParticipants()) {
-			Map<String, Object> playerData = new LinkedHashMap<>();
-			playerData.put("uuid", uuid.toString());
-			playerData.put("name", arena.getPlayerNameSnapshot().getOrDefault(uuid, "unknown"));
-			playerData.put("finalRole", resolveFinalRole(arena, uuid).name());
-			playerData.put("wasOriginalSeeker", arena.getOriginalSeekers().contains(uuid));
-			playerData.put("won", winners.contains(uuid));
-			playerData.put("matchScore", arena.getMatchScores().getOrDefault(uuid, 0));
-			playerData.put("kills", arena.getMatchKills(uuid));
-			playerData.put("quitMidGame", arena.getQuitPlayers().contains(uuid));
-			players.add(playerData);
-		}
-		root.put("players", players);
-
-		plugin.getMatchAnalyticsManager().appendRecordAsync(toJson(root), buildSummaryPayload(root, skillCounters));
+	private void recordMatchSummary(Arena arena, PlayerRole winner) {
+		plugin.getMatchStatsFileManager().recordMatchResult(arena.getArenaName(), winner, getTopPlayers(arena));
 	}
 
-	private Map<String, Object> buildSummaryPayload(Map<String, Object> root, Map<String, Object> skillCounters) {
-		Map<String, Object> payload = new LinkedHashMap<>();
-		payload.put("mapName", root.get("mapName"));
-		payload.put("winner", root.get("winner"));
-		payload.put("durationSeconds", root.get("durationSeconds"));
-		payload.put("quitPlayerCount", root.get("quitPlayerCount"));
-		payload.put("survivingHiders", root.get("survivingHiders"));
-		payload.put("finalRevealTriggered", root.get("finalRevealTriggered"));
-		payload.put("endedByAdmin", root.get("endedByAdmin"));
-		payload.put("skillCounters", new LinkedHashMap<>(skillCounters));
-		payload.put("players", new ArrayList<>((List<Map<String, Object>>) root.get("players")));
-		return payload;
+	private List<Map<String, Object>> getTopPlayers(Arena arena) {
+		List<Map.Entry<UUID, Integer>> sortedScores = new ArrayList<>(arena.getMatchScores().entrySet());
+		sortedScores.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+
+		List<Map<String, Object>> topPlayers = new ArrayList<>();
+		for (int i = 0; i < Math.min(3, sortedScores.size()); i++) {
+			UUID uuid = sortedScores.get(i).getKey();
+			Player player = Bukkit.getPlayer(uuid);
+			String name = player != null ? player.getName() : arena.getPlayerNameSnapshot().getOrDefault(uuid, "unknown");
+			topPlayers.add(Map.of(
+					"player", name,
+					"score", sortedScores.get(i).getValue()
+			));
+		}
+		return topPlayers;
 	}
 
 	private PlayerRole resolveFinalRole(Arena arena, UUID uuid) {
@@ -355,43 +313,5 @@ public class MatchResultService {
 		if (arena.getSpectators().contains(uuid)) return PlayerRole.SPECTATOR;
 		if (arena.getOriginalSeekers().contains(uuid)) return PlayerRole.SEEKER;
 		return PlayerRole.HIDER;
-	}
-
-	private String toJson(Object value) {
-		if (value == null) return "null";
-		if (value instanceof String s) return '"' + escapeJson(s) + '"';
-		if (value instanceof Number || value instanceof Boolean) return String.valueOf(value);
-		if (value instanceof Map<?, ?> map) {
-			StringBuilder sb = new StringBuilder("{");
-			boolean first = true;
-			for (Map.Entry<?, ?> entry : map.entrySet()) {
-				if (!first) sb.append(',');
-				first = false;
-				sb.append(toJson(String.valueOf(entry.getKey()))).append(':').append(toJson(entry.getValue()));
-			}
-			sb.append('}');
-			return sb.toString();
-		}
-		if (value instanceof Iterable<?> iterable) {
-			StringBuilder sb = new StringBuilder("[");
-			boolean first = true;
-			for (Object item : iterable) {
-				if (!first) sb.append(',');
-				first = false;
-				sb.append(toJson(item));
-			}
-			sb.append(']');
-			return sb.toString();
-		}
-		return toJson(String.valueOf(value));
-	}
-
-	private String escapeJson(String value) {
-		return value
-				.replace("\\", "\\\\")
-				.replace("\"", "\\\"")
-				.replace("\n", "\\n")
-				.replace("\r", "\\r")
-				.replace("\t", "\\t");
 	}
 }
